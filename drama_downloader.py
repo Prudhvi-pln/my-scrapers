@@ -1,3 +1,6 @@
+__version__ = '1.0.0'
+__author__ = 'Prudhvi Chelluri'
+
 import requests
 from bs4 import BeautifulSoup as BS
 from idm import IDMan
@@ -7,11 +10,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from urllib.parse import unquote
-from urllib.request import Request, urlretrieve
+from urllib.request import urlretrieve, build_opener, install_opener
 
 # basic config
-downloader = 'python'  # options: idm/browser/python
-out_dir = 'C:\\Users\\prudhvi.l.chelluri\\Downloads'
+downloader = 'idm'  # options: idm/browser/python
+out_dir = 'C:\\Users\\HP\\Downloads\\Video'
 
 base_url = 'https://dramacool.sr/'
 
@@ -105,23 +108,26 @@ def start_downloader(target, resolution = '480'):
     if downloader == 'idm': idm = IDMan()
 
     for ep, link in target.items():
-        print(f"Downloading episode-{ep} from url: {link}...")
+        print(f"Downloading episode-{ep}...")
         driver.get(link)
         download_link = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]/div[contains(. ,"{resolution}P")]')))
         download_url = download_link.find_element('xpath', './/a').get_attribute('href')
         out_file = unquote(link.split('title=')[1]).replace('+', ' ') + '.mp4'
         if downloader == 'idm':
             idm.download(download_url, out_dir, output=out_file, referrer=link, cookie=None, postData=None, user=None, password=None, confirm=False, lflag=None, clip=False)
+            print(f"Download started in IDM. File will be saved as: {out_dir}\{out_file}")
         elif downloader == 'browser':
             download_link.click()
+            print(f"File will be saved to your browser download directory")
         elif downloader == 'python':
-            req = Request(download_url)
-            req.add_header('referer', link)
-            urlretrieve(req, f'{out_dir}\{out_file}', showProgressBar())
+            opener = build_opener()
+            opener.addheaders = [('referer', link)]
+            install_opener(opener)
+            urlretrieve(download_url, f'{out_dir}\{out_file}', showProgressBar())
             # response = requests.get(download_url, headers = {'referer': link}, stream = True)
             # open(f'{out_dir}\{out_file}', 'wb').write(response.content)
+            print(f"File saved as: {out_dir}\{out_file}")
 
-        print(f"File saved as: {out_dir}\{out_file}")
 
 # main function
 if __name__ == '__main__':
