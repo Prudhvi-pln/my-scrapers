@@ -1,11 +1,17 @@
 import requests
 from bs4 import BeautifulSoup as BS
-# from idm import IDMan
+from idm import IDMan
+from progressbar import ProgressBar
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from urllib.parse import unquote
+from urllib.request import Request, urlretrieve
 
+# basic config
+downloader = 'python'  # options: idm/browser/python
+out_dir = 'C:\\Users\\prudhvi.l.chelluri\\Downloads'
 
 base_url = 'https://dramacool.sr/'
 
@@ -14,6 +20,21 @@ keyword = input("Enter Drama name: ")
 # mask search keyword
 search_key = keyword.replace(' ', '+')
 search_url = base_url + 'search?type=drama&keyword=' + search_key
+
+class showProgressBar():
+    def __init__(self):
+        self.pbar = None
+
+    def __call__(self, block_num, block_size, total_size):
+        if not self.pbar:
+            self.pbar = ProgressBar(maxval=total_size)
+            self.pbar.start()
+
+        downloaded = block_num * block_size
+        if downloaded < total_size:
+            self.pbar.update(downloaded)
+        else:
+            self.pbar.finish()
 
 # modular functions
 def get_soup(search_url):
@@ -57,7 +78,10 @@ def print_episode_details(episode_list):
     print(f"Last updated on: {episode_list[0].find('span', {'class': 'time'}).text}")
 
 def fetch_episode_links(episode_list, range):
-    ep_start, ep_end = map(int, range.split('-'))
+    try:
+        ep_start, ep_end = map(int, range.split('-'))
+    except ValueError as ve:
+        ep_start = ep_end = int(range)
     print("\nFetching links: ")
     ep_target = {}
     for episode in episode_list[::-1]:
@@ -67,23 +91,37 @@ def fetch_episode_links(episode_list, range):
             ep_link = 'https:' + ep_link if ep_link.startswith('//') else ep_link
             ep_target.update({ep_no: ep_link})
             print(f"Episode-{ep_no}: {ep_link}")
+
     return ep_target
 
 def start_downloader(target, resolution = '480'):
-    print("\nDownloading episodes...")
+    print("\nDownloading episode(s)...")
 
     # driver define and lunch
     driver = webdriver.Chrome()
     driver.maximize_window()
 
     # IDM downloader
-    # downloader = IDMan()
+    if downloader == 'idm': idm = IDMan()
 
     for ep, link in target.items():
         print(f"Downloading episode-{ep} from url: {link}...")
         driver.get(link)
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]/div[contains(. ,"{resolution}P")]'))).click()
-        # downloader.download(url, r"c:\DOWNLOADS", output=None, referrer=None, cookie=None, postData=None, user=None, password=None, confirm = False, lflag = None, clip=False)
+        download_link = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]/div[contains(. ,"{resolution}P")]')))
+        download_url = download_link.find_element('xpath', './/a').get_attribute('href')
+        out_file = unquote(link.split('title=')[1]).replace('+', ' ') + '.mp4'
+        if downloader == 'idm':
+            idm.download(download_url, out_dir, output=out_file, referrer=link, cookie=None, postData=None, user=None, password=None, confirm=False, lflag=None, clip=False)
+        elif downloader == 'browser':
+            download_link.click()
+        elif downloader == 'python':
+            req = Request(download_url)
+            req.add_header('referer', link)
+            urlretrieve(req, f'{out_dir}\{out_file}', showProgressBar())
+            # response = requests.get(download_url, headers = {'referer': link}, stream = True)
+            # open(f'{out_dir}\{out_file}', 'wb').write(response.content)
+
+        print(f"File saved as: {out_dir}\{out_file}")
 
 # main function
 if __name__ == '__main__':
