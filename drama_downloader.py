@@ -1,5 +1,5 @@
-__version__ = '1.0.0'
-__author__ = 'Prudhvi Chelluri'
+__version__ = '1.0'
+__author__ = 'Prudhvi PLN'
 
 import requests
 from bs4 import BeautifulSoup as BS
@@ -19,12 +19,13 @@ out_dir = 'C:\\Users\\HP\\Downloads\\Video'
 base_url = 'https://dramacool.sr/'
 
 # get drama name as user input
-keyword = input("Enter Drama name: ")
+keyword = input("\nEnter Drama name: ")
 # mask search keyword
 search_key = keyword.replace(' ', '+')
 search_url = base_url + 'search?type=drama&keyword=' + search_key
 
-class showProgressBar():
+# display progress bar
+class ShowProgressBar():
     def __init__(self):
         self.pbar = None
 
@@ -40,7 +41,7 @@ class showProgressBar():
             self.pbar.finish()
 
 # modular functions
-def get_soup(search_url):
+def get_bsoup(search_url):
     header = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
     }
@@ -49,7 +50,7 @@ def get_soup(search_url):
     return BS(html_content, 'html.parser')
 
 def fetch_search_items(items):
-    # print(items)
+    #print(items)
     dict = {}
     count = 1
     for item in items:
@@ -81,16 +82,19 @@ def print_episode_details(episode_list):
     print(f"Last updated on: {episode_list[0].find('span', {'class': 'time'}).text}")
 
 def fetch_episode_links(episode_list, range):
-    try:
-        ep_start, ep_end = map(int, range.split('-'))
-    except ValueError as ve:
-        ep_start = ep_end = int(range)
+    if range == 'all':
+        ep_start, ep_end = 1, len(episode_list)
+    else:
+        try:
+            ep_start, ep_end = map(int, range.split('-'))
+        except ValueError as ve:
+            ep_start = ep_end = int(range)
     print("\nFetching links: ")
     ep_target = {}
     for episode in episode_list[::-1]:
         ep_no = int(episode.find('h3').text.strip().split()[-1])
         if ep_no >= ep_start and ep_no <= ep_end:
-            ep_link = get_soup(episode['href']).find('div', {'class': 'plugins2'}).find('ul').find('li', {'class': 'download'}).find('a')['href']
+            ep_link = get_bsoup(episode['href']).find('div', {'class': 'plugins2'}).find('ul').find('li', {'class': 'download'}).find('a')['href']
             ep_link = 'https:' + ep_link if ep_link.startswith('//') else ep_link
             ep_target.update({ep_no: ep_link})
             print(f"Episode-{ep_no}: {ep_link}")
@@ -123,7 +127,7 @@ def start_downloader(target, resolution = '480'):
             opener = build_opener()
             opener.addheaders = [('referer', link)]
             install_opener(opener)
-            urlretrieve(download_url, f'{out_dir}\{out_file}', showProgressBar())
+            urlretrieve(download_url, f'{out_dir}\{out_file}', ShowProgressBar())
             # response = requests.get(download_url, headers = {'referer': link}, stream = True)
             # open(f'{out_dir}\{out_file}', 'wb').write(response.content)
             print(f"File saved as: {out_dir}\{out_file}")
@@ -131,7 +135,7 @@ def start_downloader(target, resolution = '480'):
 
 # main function
 if __name__ == '__main__':
-    soup = get_soup(search_url)
+    soup = get_bsoup(search_url)
     # get matched items
     items = soup.find('ul', {'class': 'list-episode-item'}).find_all('li')
 
@@ -148,7 +152,7 @@ if __name__ == '__main__':
         else:
             target = search_results[option]
             print("Navigating to url: " + target[1])
-            soup = get_soup(target[1])
+            soup = get_bsoup(target[1])
             info = soup.find('div', {'class': 'info'}).find_all('p')
             # print details of drama
             print_drama_details(target, info)
@@ -157,8 +161,8 @@ if __name__ == '__main__':
             # print episode details
             print_episode_details(episode_list)
             # get user inputs
-            resolution = input("\nEnter download resolution in Pixels (360|480|720|1080): ")
-            ep_option = input("\nEnter episodes to download (ex: 1-16): ")
+            resolution = input("\nEnter download resolution (360|480|720|1080) [default=480]: ") or "480"
+            ep_option = input("\nEnter episodes to download (ex: 1-16): ") or "all"
             # fetch episode links
             ep_target = fetch_episode_links(episode_list, ep_option)
 

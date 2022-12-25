@@ -1,5 +1,6 @@
 beautifulsoup4
 idm
 progressbar
+pyyaml
 requests
 selenium

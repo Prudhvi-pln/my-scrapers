@@ -1,0 +1,21 @@
+# downloader options: idm/python
+anime:
+  base_url: 'https://gogoanime.bid/'
+  search_url: 'search.html?keyword='
+  downloader: 'idm'
+  download_dir: 'C:\Users\HP\Downloads\Video'
+  search_element: 'ul.items li'
+  series_info_element: 'div.anime_info_body p'
+  episodes_element: 'ul#episode_page a'
+  episodes_retrieve_url: 'https://ajax.gogo-load.com/ajax/load-list-episode?ep_start={ep_start}&ep_end={ep_end}&id={id}'
+  download_link_element: 'div.favorites_book ul li a'
+
+drama:
+  base_url: 'https://dramacool.sr/'
+  search_url: 'search?type=drama&keyword='
+  downloader: 'idm'
+  download_dir: 'C:\Users\HP\Downloads\Video'
+  search_element: 'ul.list-episode-item li'
+  series_info_element: 'div.info p'
+  episodes_element: 'ul.all-episode a'
+  download_link_element: 'div.plugins2 ul li.download a'
