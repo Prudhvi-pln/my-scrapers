@@ -1,17 +1,22 @@
-__version__ = '1.1'
+__version__ = '1.5'
 __author__ = 'Prudhvi PLN'
 
+import logging
 import os
 import requests
+import speech_recognition as sr
 import yaml
 from bs4 import BeautifulSoup as BS
 from idm import IDMan
 from progressbar import ProgressBar
+from pydub import AudioSegment
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from time import sleep
 from urllib.parse import quote_plus, unquote
 from urllib.request import urlretrieve, build_opener, install_opener
 
@@ -49,10 +54,19 @@ class BatchDownloader():
         # load yaml config
         with open(config_file, "r") as stream:
             try:
-                self.config = yaml.safe_load(stream)[type]
+                config = yaml.safe_load(stream)
+                self.config = config[type]
             except yaml.YAMLError as exc:
                 print(f"Error occured while reading yaml file: {exc}")
                 exit(1)
+
+        # logger to write download links to file
+        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(filename=config['download_links_file'], filemode='w', format='%(message)s', force=True)
+
+    def print_and_log(self, message):
+        print(message)
+        logging.info(message)
 
     def init_webdriver(self):
         # define and launch driver
@@ -78,6 +92,31 @@ class BatchDownloader():
         html_content = requests.get(search_url, headers=header).text
 
         return BS(html_content, 'html.parser')
+
+    def audio2text(self, mp3Path):
+        wavPath = mp3Path.replace('.mp3', '.wav')
+        sound = AudioSegment.from_mp3(mp3Path)
+        sound.export(wavPath, format="wav")
+        # initialize the recognizer
+        r = sr.Recognizer()
+        # open the file
+        with sr.AudioFile(wavPath) as source:
+            # listen for the data (load audio to memory)
+            audio_data = r.record(source)
+            # recognize (convert from speech to text)
+            text = r.recognize_google(audio_data)
+            #print(f"Captcha text: {text}")
+
+        # delete files after completed
+        os.remove(wavPath)
+        os.remove(mp3Path)
+
+        return text
+
+    def save_file(self, content, filename):
+        with open(filename, "wb") as handle:
+            for data in content.iter_content():
+                handle.write(data)
 
     def search(self, keyword):
         # mask search keyword
@@ -137,7 +176,7 @@ class BatchDownloader():
         print("Total episodes: " + [ ele.text for ele in episode_list ][-1].split('-')[-1])
 
     def fetch_series_details(self, target):
-        print("Navigating to url: " + target[1])
+        self.print_and_log("Navigating to url: " + target[1])
         soup = self.get_bsoup(target[1])
         info = soup.select(self.config['series_info_element'])
         # print details of drama
@@ -149,6 +188,72 @@ class BatchDownloader():
             self.print_anime_episodes_info(self.episode_list)
         elif self.type == 'drama':
             self.print_drama_episodes_info(self.episode_list)
+
+    def get_download_urls(self, referer_link, ep_no):
+        delayTime = 1
+        filename = 'audio.mp3'
+        self.driver.get(referer_link)
+        urls = WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]'))).find_elements('xpath','.//div/a')
+        if len(urls) == 0:
+            # start captcha solving
+            print(f"Start captcha solving for episode-{ep_no}", end=' ')
+            outeriframe = self.driver.find_element(By.ID, 'content-download').find_element(By.TAG_NAME, 'iframe')
+            outeriframe.click()
+
+            allIframesLen = self.driver.find_elements(By.TAG_NAME, 'iframe')
+            audioBtnFound = False
+            audioBtnIndex = -1
+
+            for index in range(len(allIframesLen)):
+                self.driver.switch_to.default_content()
+                iframe = self.driver.find_elements(By.TAG_NAME, 'iframe')[index]
+                self.driver.switch_to.frame(iframe)
+                self.driver.implicitly_wait(delayTime)
+                try:
+                    audioBtn = self.driver.find_element(By.ID, 'recaptcha-audio-button') or self.driver.find_element(By.ID, 'recaptcha-anchor')
+                    audioBtn.click()
+                    audioBtnFound = True
+                    audioBtnIndex = index
+                    break
+                except Exception as e:
+                    pass
+
+            if audioBtnFound:
+                try:
+                    # sometimes you need to solve captcha multiple times. So, keep solving...
+                    while True:
+                        href = self.driver.find_element(By.ID, 'audio-source').get_attribute('src')
+                        response = requests.get(href, stream=True)
+                        self.save_file(response, filename)
+                        response = self.audio2text(os.getcwd() + '/' + filename)
+
+                        self.driver.switch_to.default_content()
+                        iframe = self.driver.find_elements(By.TAG_NAME, 'iframe')[audioBtnIndex]
+                        self.driver.switch_to.frame(iframe)
+
+                        inputbtn = self.driver.find_element(By.ID, 'audio-response')
+                        inputbtn.send_keys(response)
+                        inputbtn.send_keys(Keys.ENTER)
+
+                        sleep(delayTime)
+                        errorMsg = self.driver.find_elements(By.CLASS_NAME, 'rc-audiochallenge-error-message')[0]
+
+                        if errorMsg.text == "" or errorMsg.value_of_css_property('display') == 'none':
+                            print("Captcha solved!!!")
+                            break
+                        
+                except Exception as e:
+                    print(e)
+                    print('Caught. Need to change proxy now. Exiting code...')
+                    exit(1)
+
+            # submit captcha after solved
+            self.driver.switch_to.default_content()
+            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="btn-submit"]'))).click()
+            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, '//*[@id="content-download"]/div[1]/div[2]')))
+            urls = self.driver.find_element(By.XPATH, f'//*[@id="content-download"]/div[1]').find_elements('xpath','.//div/a')
+
+        return urls
 
     def filter_episode_links(self, ep_range):
         if ep_range == 'all':
@@ -175,21 +280,22 @@ class BatchDownloader():
             if ep_no >= ep_start and ep_no <= ep_end:
                 download_links = {}
                 ep_link = self.config['base_url'] + episode['href'].strip() if episode['href'].strip().startswith('/') else episode['href']
-                referrer_link = self.get_bsoup(ep_link).select(self.config['download_link_element'])[0]['href']
-                referrer_link = 'https:' + referrer_link if referrer_link.startswith('/') else referrer_link
+                referer_link = self.get_bsoup(ep_link).select(self.config['download_link_element'])[0]['href']
+                referer_link = 'https:' + referer_link if referer_link.startswith('/') else referer_link
                 # add referrer link
-                download_links['source'] = referrer_link
+                download_links['source'] = referer_link
                 # get download links via web-driver becoz of recaptcha
-                self.driver.get(referrer_link)
-                download_urls = WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]')))
+                download_urls = self.get_download_urls(referer_link, ep_no)
                 # get all download links
-                for link in download_urls.find_elements('xpath','.//div/a'):
+                for link in download_urls:
                     download_links[link.text.split()[1].replace('(','').strip()] = link.get_attribute('href')
                 self.filtered_episode_links[ep_no] = download_links
                 # print links
-                print(f"Episode-{ep_no} links:")
+                self.print_and_log(f"Episode-{ep_no} links:")
                 for link in download_links:
-                    print(f"  {link}: {download_links[link]}")
+                    self.print_and_log(f"  {link}: {download_links[link]}")
+                if len(download_links) <= 1:
+                    self.print_and_log("  Failed to fetch download links")
 
         # close the web driver
         self.close_webdriver()

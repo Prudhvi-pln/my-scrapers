@@ -1,6 +1,8 @@
 beautifulsoup4
 idm
 progressbar
+pydub
 pyyaml
 requests
 selenium
+SpeechRecognition
