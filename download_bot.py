@@ -329,7 +329,13 @@ class BatchDownloader():
 if __name__ == '__main__':
     # get series type
     types = {1: 'anime', 2: 'drama'}
-    type = int(input("\nSelect type of series: \n1. Anime\n2. Drama\nEnter your choice: "))
+    try:
+        type = int(input("\nSelect type of series: \n1. Anime\n2. Drama\nEnter your choice: "))
+        if type not in types:
+            raise Exception
+    except Exception as e:
+        print("Invalid input!")
+        exit(1)
     # initialize BatchDownloader
     bd = BatchDownloader(config_file, types[type])
 
@@ -344,7 +350,11 @@ if __name__ == '__main__':
         print(f"{x}: {y[0]}")
 
     # get user selection for the search results
-    option = int(input("\nSelect one of the above: "))
+    try:
+        option = int(input("\nSelect one of the above: "))
+    except Exception as e:
+        print("Invalid input!")
+        exit(1)
     if option < 1 or option > len(search_results.keys()):
         print("Invalid option!!!")
         exit(1)

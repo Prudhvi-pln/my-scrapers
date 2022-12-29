@@ -6,6 +6,7 @@ contains collection of my web scrapers for various uses mostly entire series dow
  - Python >3.8
  - Chrome
  - pip dependencies: `pip install -r requirements.txt`
+ - SpeechRecognition requires ffmpeg to be installed. _Note: ffmpeg needs to be added to Environment variables > PATH_
 
 ## Drama Downloader
  - Script: `drama_downloader.py`
