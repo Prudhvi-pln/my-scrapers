@@ -196,7 +196,7 @@ class BatchDownloader():
         urls = WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]'))).find_elements('xpath','.//div/a')
         if len(urls) == 0:
             # start captcha solving
-            print(f"Start captcha solving for episode-{ep_no}", end=' ')
+            print(f"Started solving captcha for episode-{ep_no}...", end=' ')
             outeriframe = self.driver.find_element(By.ID, 'content-download').find_element(By.TAG_NAME, 'iframe')
             outeriframe.click()
 

@@ -13,7 +13,7 @@ contains collection of my web scrapers for various uses mostly entire series dow
  - Description: `bot to download a drama series`
 
 ## Batch Downloader
- - Script: `batch_downloader.py`
+ - Script: `download_bot.py`
  - Configuration: `downloader_config.yaml`
  - Version: `1.5`
  - Description: `bot to download both anime & drama series/movie`
