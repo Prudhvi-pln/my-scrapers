@@ -16,10 +16,15 @@ contains collection of my web scrapers for various uses mostly entire series dow
 ## Batch Downloader
  - Script: `download_bot.py`
  - Configuration: `downloader_config.yaml`
- - Version: `1.5`
+ - Version: `2.0`
  - Description: `bot to download both anime & drama series/movie`
 
  ### Changelog
+  - Version: `2.0`
+    - Added multi-threading for parallel downloads
+    - Added cache while retrieving download links
+    - Bug fixes in captcha solver
+    - Lot of optimizations under the hood
   - Version: `1.5`
     - major breakthrough in captcha :) Automated captcha solving using speech recognition module
   - Version: `1.1`
