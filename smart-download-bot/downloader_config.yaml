@@ -10,8 +10,8 @@ anime:
   episodes_retrieve_url: 'https://ajax.gogo-load.com/ajax/load-list-episode?ep_start={ep_start}&ep_end={ep_end}&id={id}'
   download_link_element: 'div.favorites_book ul li a'
   max_parallel_downloads: 4
-  min_download_wait_time: 10
-  max_download_wait_time: 600
+  min_download_wait_time_in_sec: 10
+  max_download_wait_time_in_sec: 600
 
 drama:
   base_url: 'https://www.1dramacool.co/'
@@ -25,12 +25,12 @@ drama:
   episodes_element: 'ul.all-episode a'
   download_link_element: 'div.plugins2 ul li.download a'
   max_parallel_downloads: 2
-  min_download_wait_time: 10
-  max_download_wait_time: 1800
+  min_download_wait_time_in_sec: 10
+  max_download_wait_time_in_sec: 1800
 
 # file to store the last run's download links
 download_links_file: 'recent_download_links.json'
 chrome_profile:
-  use_profile: True
+  use_profile: False
   user_dir: 'C:/Users/HP/AppData/Local/Google/Chrome/User Data'
   profile_name: 'Profile 2'

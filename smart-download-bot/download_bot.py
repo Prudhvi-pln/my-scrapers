@@ -1,4 +1,4 @@
-__version__ = '2.1'
+__version__ = '2.3'
 __author__ = 'Prudhvi PLN'
 
 import json
@@ -27,7 +27,7 @@ from urllib.request import urlretrieve, build_opener, install_opener
 
 # config file
 config_file = 'downloader_config.yaml'
-use_stealth = False
+use_stealth = True
 use_proxy = False
 PROXY = '127.0.0.1:9150'
 
@@ -86,8 +86,8 @@ class BatchDownloader():
         options.add_argument(f'user-agent={self.header["user-agent"]}')
         options.add_argument("--start-maximized")
         # options.add_argument('--headless')
+        options.add_argument('--ignore-certificate-errors')
         if use_proxy:
-            options.add_argument('--ignore-certificate-errors')
             options.add_argument('--proxy-server=socks5://%s' % PROXY)
         # use a profile
         if self.profile_details['use_profile']:
@@ -95,12 +95,9 @@ class BatchDownloader():
             options.add_argument(f'--profile-directory={self.profile_details["profile_name"]}')
         else:
             options.add_argument("--incognito")
-        # disable debug logging
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        # disable 'tests being run by controlled software'
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        self.driver = webdriver.Chrome(options=options)
+        # disable 'tests being run by controlled software' & disable debug logging
+        options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+        self.driver = webdriver.Chrome(options=options, service_log_path='./chrome_driver.log')
         if use_stealth:
             stealth(self.driver,
                 user_agent=self.header["user-agent"],
@@ -177,7 +174,7 @@ class BatchDownloader():
         items = soup.select(self.config['search_element'])
         if len(items) == 0:
             print(f"No results found with key word: {keyword}")
-            exit(0)
+            return
 
         return items
 
@@ -241,6 +238,15 @@ class BatchDownloader():
         elif self.type == 'drama':
             self.print_drama_episodes_info(self.episode_list)
 
+    def close_ads(self):
+        if not self.profile_details['use_profile']:
+            # disable full block ad if any.
+            # Need not do this if you are using ad-block extension in your profile
+            try:
+                self.driver.execute_script("document.querySelector('html > div').style.display = 'none';")
+            except:
+                pass
+
     def captcha_solver(self, retry):
         # reference: https://github.com/ohyicong/recaptcha_v2_solver/blob/master/recaptcha_solver.py
 
@@ -248,22 +254,29 @@ class BatchDownloader():
             # increase sleep time as retry count increases
             sleep_time = randint(retry, delay*retry)
             self.driver.implicitly_wait(sleep_time)
+            # Ads may popup during waiting.
+            self.close_ads()
 
         print(f"  Started solving captcha...", end=' ')
         filename = 'audio.mp3'
         wait()
 
-        outeriframe = self.driver.find_element(By.ID, 'content-download').find_element(By.TAG_NAME, 'iframe')
-        outeriframe.click()
+        def click_on_captcha():
+            self.driver.find_element(By.ID, 'content-download').find_element(By.TAG_NAME, 'iframe').click()
 
-        # disable full block ad
-        # self.driver.execute_script("document.querySelector('html > div').style.display = 'none';")
+        try:
+            click_on_captcha()
+        except:
+            # close ads and repeat
+            self.close_ads()
+            click_on_captcha()
 
         # find iframe for audio captcha (in case of multiple iframes)
         wait()
         allIframesLen = self.driver.find_elements(By.TAG_NAME, 'iframe')
         audioBtnFound = False
         audioBtnFrame = ''
+        self.close_ads()
 
         for index in range(len(allIframesLen)):
             self.driver.switch_to.default_content()
@@ -321,7 +334,9 @@ class BatchDownloader():
                 self.captcha_solver(retry)
 
                 # submit captcha after solved
+                self.close_ads()
                 WebDriverWait(self.driver, self.element_waitime).until(EC.presence_of_element_located((By.XPATH, '//*[@id="content-download"]/div[1]/div[2]')))
+                self.close_ads()
                 urls = self.driver.find_element(By.XPATH, f'//*[@id="content-download"]/div[1]').find_elements('xpath','.//div/a')
 
             # get all download links
@@ -427,10 +442,10 @@ class BatchDownloader():
                 tot_wait_time = 0
                 while not os.path.isfile(f'{out_dir}\{out_file}'):
                     #print(f"{out_file} not downloaded yet. Waiting...")
-                    sleep(self.config['min_download_wait_time'])
-                    tot_wait_time += self.config['min_download_wait_time']
-                    if tot_wait_time > self.config['max_download_wait_time']:
-                        return f"Download for {out_file} is taking longer than {self.config['max_download_wait_time']}. Proceeding with next file..."
+                    sleep(self.config['min_download_wait_time_in_sec'])
+                    tot_wait_time += self.config['min_download_wait_time_in_sec']
+                    if tot_wait_time > self.config['max_download_wait_time_in_sec']:
+                        return f"Download for {out_file} is taking longer than {self.config['max_download_wait_time_in_sec']}. Proceeding with next file..."
             # download within code using urllib
             elif self.config['downloader'] == 'python':
                 opener = build_opener()
@@ -475,25 +490,34 @@ if __name__ == '__main__':
     # initialize BatchDownloader
     bd = BatchDownloader(config_file, types[type])
 
-    # get search keyword from user input
-    keyword = input("\nEnter series/movie name: ")
-    # search with keyword
-    items = bd.search(keyword)
-    # fetch the search result urls
-    search_results = bd.fetch_search_links(items)
-    print("\nSearch Results:")
-    for x,y in search_results.items():
-        print(f"{x}: {y[0]}")
+    # search in an infinite loop till you get your series
+    while True:
+        # get search keyword from user input
+        keyword = input("\nEnter series/movie name: ")
+        # search with keyword
+        items = bd.search(keyword)
+        if items is None: continue
+        # fetch the search result urls
+        search_results = bd.fetch_search_links(items)
+        print("\nSearch Results:")
+        for x,y in search_results.items():
+            print(f"{x}: {y[0]}")
 
-    # get user selection for the search results
-    try:
-        option = int(input("\nSelect one of the above: "))
-    except Exception as e:
-        print("Invalid input!")
-        exit(1)
-    if option < 1 or option > len(search_results.keys()):
-        print("Invalid option!!!")
-        exit(1)
+        print("\nEnter 0 to search with different key word")
+
+        # get user selection for the search results
+        try:
+            option = int(input("\nSelect one of the above: "))
+        except Exception as e:
+            print("Invalid input!")
+            exit(1)
+        if option < 0 or option > len(search_results.keys()):
+            print("Invalid option!!!")
+            exit(1)
+        elif option == 0:
+            continue
+        else:
+            break
 
     # print details of the series & get all episode links
     bd.fetch_series_details(search_results[option])
