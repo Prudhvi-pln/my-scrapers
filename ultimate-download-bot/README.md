@@ -12,3 +12,8 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - add to Environment variables > PATH
    - Linux (Ubuntu):
      - sudo apt install -y ffmpeg
+
+## Changelog
+ - Version 1.1 [2023-01-28]
+   - First version
+   - Download multiple anime episodes in parallel from animepahe

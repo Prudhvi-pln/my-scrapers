@@ -1,9 +1,10 @@
-__version__ = '1.0'
+__version__ = '1.1'
 __author__ = 'Prudhvi PLN'
 
 import os
 import yaml
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from subprocess import Popen, PIPE
 from Clients.AnimeClient import AnimeClient
 
@@ -12,52 +13,66 @@ print_episode_list = True
 # list of invalid characters not allowed in windows file system
 invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
 
-def exec_cmd(cmd):
-    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-    # print stdout to console
-    # print(proc.communicate()[0].decode("utf-8"))
-    std_err = proc.communicate()[1].decode("utf-8")
-    rc = proc.returncode
-    if rc != 0:
-        print(f"Error occured: {std_err}")
 
-class Downloader():
+class HLSDownloader():
     def __init__(self, out_dir, temp_dir, concurrency):
         self.out_dir = out_dir
         self.temp_dir = temp_dir
         self.concurrency = concurrency
 
-        # create output directory
-        if not os.path.exists(out_dir): os.makedirs(out_dir)
-        if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+    def create_out_dirs(self):
+        if not os.path.exists(self.out_dir): os.makedirs(self.out_dir)
+        if not os.path.exists(self.temp_dir): os.makedirs(self.temp_dir)
+
+    def remove_out_dirs(self):
+        if len(os.listdir(self.temp_dir)) == 0:
+            os.rmdir(self.temp_dir)
+        else:
+            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads')
+
+        if len(os.listdir(self.out_dir)) == 0: os.rmdir(self.out_dir)
+
+    def exec_cmd(self, cmd):
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        # print stdout to console
+        # print(proc.communicate()[0].decode("utf-8"))
+        std_err = proc.communicate()[1].decode("utf-8")
+        rc = proc.returncode
+        if rc != 0:
+            print(f"Error occured: {std_err}")
 
     def m3u8_downloader(self, url, out_file):
-        print(f'Downloading {out_file}...')
+        get_current_time = lambda fmt='%F %T': datetime.now().strftime(fmt)
+
+        start = get_current_time()
+        start_epoch = get_current_time('%s')
+        print(f'[{start}] Download started for {out_file}...')
 
         if os.path.isfile(f'{self.out_dir}\\{out_file}'):
             # skip file if already exists
-            print(f'File already exists. Skipping {out_file}...')
+            print(f'[{start}] File already exists. Skipping {out_file}...')
         else:
             # call downloadm3u8 via subprocess
             cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {url}'
-            exec_cmd(cmd)
-            print(f'Download complete! File saved as {self.out_dir}\{out_file}')
+            self.exec_cmd(cmd)
+            end = get_current_time()
+            end_epoch = get_current_time('%s')
+            print(f'[{end}] Download complete in {end_epoch-start_epoch}s! File saved as {self.out_dir}\{out_file}')
 
     def start_downloader(self, links, max_parallel_downloads):
 
+        # create output directory
+        self.create_out_dirs()
         print("\nDownloading episode(s)...")
 
         # start downloads in parallel threads
         with ThreadPoolExecutor(max_workers=max_parallel_downloads, thread_name_prefix='udb-') as executor:
             results = [ executor.submit(self.m3u8_downloader, link, out_file) for out_file, link in links.items() ]
-            for result in results:
+            for result in as_completed(results):
                 print(result.result())
 
         # remove temp dir once completed and dir is empty
-        if len(os.listdir(self.temp_dir)) == 0:
-            os.rmdir(self.temp_dir)
-        else:
-            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads')
+        self.remove_out_dirs()
 
 
 # load yaml config into dict
@@ -154,7 +169,7 @@ if __name__ == '__main__':
             temp_download_dir = f'{target_dir}\\temp_dir'
 
         # download client
-        dlClient = Downloader(target_dir, temp_download_dir, concurrency_per_file)
+        dlClient = HLSDownloader(target_dir, temp_download_dir, concurrency_per_file)
 
         # get user inputs
         ep_range = input("\nEnter episodes to download (ex: 1-16): ") or "all"
@@ -178,8 +193,12 @@ if __name__ == '__main__':
 
         # get m3u8 link for the specified resolution
         resolution = input("\nEnter download resolution (360|480|720|1080) [default=720]: ") or "720"
-        print('\nFetching Episode links')
+        print('\nFetching Episode links:')
         target_dl_links = fetch_m3u8_links(target_ep_links, resolution, episode_prefix)
+
+        if len(target_dl_links) == 0:
+            print('No episodes available to download! Exiting.')
+            exit(0)
 
         proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower()
         if proceed == 'y':

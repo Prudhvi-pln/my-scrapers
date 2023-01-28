@@ -73,11 +73,12 @@ class AnimeClient():
 
         return m3u8_link
 
-
     def anime_search_results(self, items):
         for idx, item in enumerate(items):
-            print(f"{idx+1}: {item.get('title')} | {item.get('type')}")
-            print(f"   | Episodes: {item.get('episodes')} | Released: {item.get('year')}, {item.get('season')} | Status: {item.get('status')}")
+            info = f"{idx+1}: {item.get('title')} | {item.get('type')}\n   " + \
+                   f"| Episodes: {item.get('episodes')} | Released: {item.get('year')}, {item.get('season')} " + \
+                   f"| Status: {item.get('status')}"
+            print(info)
 
     def anime_episode_results(self, items):
         for item in items:
@@ -85,8 +86,9 @@ class AnimeClient():
 
     def anime_episode_links(self, items):
         for item, details in items.items():
-            print(f"Episode: {item}", end=' | ')
+            info = f"Episode: {item} |"
             for _res in details:
-                _reskey = list(_res.keys())[0]
-                print(f"{_reskey} ({_res[_reskey]['filesize']/(1024**2):.2f} MB)", end=' | ')
-            print()
+                _reskey = next(iter(_res))
+                filesize = _res[_reskey]['filesize'] / (1024**2)
+                info += f' {_reskey} ({filesize:.2f} MB) |'
+            print(info)
