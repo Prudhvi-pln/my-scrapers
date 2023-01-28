@@ -3,6 +3,7 @@ __author__ = 'Prudhvi PLN'
 
 import os
 import yaml
+from concurrent.futures import ThreadPoolExecutor
 from subprocess import Popen, PIPE
 from Clients.AnimeClient import AnimeClient
 
@@ -14,11 +15,50 @@ invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
 def exec_cmd(cmd):
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     # print stdout to console
-    print(proc.communicate()[0].decode("utf-8"))
+    # print(proc.communicate()[0].decode("utf-8"))
     std_err = proc.communicate()[1].decode("utf-8")
     rc = proc.returncode
     if rc != 0:
-        print("Error occured: " + str(std_err))
+        print(f"Error occured: {std_err}")
+
+class Downloader():
+    def __init__(self, out_dir, temp_dir, concurrency):
+        self.out_dir = out_dir
+        self.temp_dir = temp_dir
+        self.concurrency = concurrency
+
+        # create output directory
+        if not os.path.exists(out_dir): os.makedirs(out_dir)
+        if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+
+    def m3u8_downloader(self, url, out_file):
+        print(f'Downloading {out_file}...')
+
+        if os.path.isfile(f'{self.out_dir}\\{out_file}'):
+            # skip file if already exists
+            print(f'File already exists. Skipping {out_file}...')
+        else:
+            # call downloadm3u8 via subprocess
+            cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {url}'
+            exec_cmd(cmd)
+            print(f'Download complete! File saved as {self.out_dir}\{out_file}')
+
+    def start_downloader(self, links, max_parallel_downloads):
+
+        print("\nDownloading episode(s)...")
+
+        # start downloads in parallel threads
+        with ThreadPoolExecutor(max_workers=max_parallel_downloads, thread_name_prefix='udb-') as executor:
+            results = [ executor.submit(self.m3u8_downloader, link, out_file) for out_file, link in links.items() ]
+            for result in results:
+                print(result.result())
+
+        # remove temp dir once completed and dir is empty
+        if len(os.listdir(self.temp_dir)) == 0:
+            os.rmdir(self.temp_dir)
+        else:
+            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads')
+
 
 # load yaml config into dict
 def load_yaml(config_file):
@@ -39,7 +79,7 @@ def fetch_m3u8_links(target_links, resolution, episode_prefix):
     has_key = lambda x, y: y in x.keys()
 
     for ep, link in target_links.items():
-        print(f'Episode: {ep}', end=' ')
+        print(f'Episode: {ep}', end=' | ')
         res_dict = [ i.get(resolution) for i in link if has_key(i, resolution) ]
         if len(res_dict) == 0:
             print(f'Resolution [{resolution}] not found')
@@ -55,24 +95,6 @@ def fetch_m3u8_links(target_links, resolution, episode_prefix):
 
     return final_download_dict
 
-def m3u8_downloader(url, out_file, temp_dir, concurrency):
-    cmd = f'downloadm3u8 -o {out_file} --tempdir {temp_dir} --concurrency {concurrency} {url}'
-    exec_cmd(cmd)
-
-def start_downloader(links, out_dir, temp_dir, concurrency):
-    # create output directory
-    if not os.path.exists(out_dir): os.makedirs(out_dir)
-    if not os.path.exists(temp_dir): os.makedirs(temp_dir)
-
-    print("\nDownloading episode(s)...")
-    for out_file, link in links.items():
-        # skip file if already exists
-        if os.path.isfile(f'{out_dir}\\{out_file}'):
-            print(f'File already exists. Skipping {out_file}...')
-        else:
-            m3u8_downloader(link, f'{out_dir}\\{out_file}', temp_dir, concurrency)
-            print(f'{out_file} downloaded at {out_dir}\{out_file}')
-
 
 if __name__ == '__main__':
     try:
@@ -81,6 +103,7 @@ if __name__ == '__main__':
 
         # create client
         client = AnimeClient(config['anime'])
+        max_parallel_downloads = config['max_parallel_downloads']
 
         # search in an infinite loop till you get your series
         while True:
@@ -119,7 +142,7 @@ if __name__ == '__main__':
             print('\nAvailable Episodes Details:')
             client.anime_episode_results(episodes)
 
-        # output settings
+        # output settings for m3u8
         anime_title = target_anime['title']
         for i in invalid_chars:
             anime_title = anime_title.replace(i, '')
@@ -129,6 +152,9 @@ if __name__ == '__main__':
         temp_download_dir = config['temp_download_dir']
         if temp_download_dir == 'auto':
             temp_download_dir = f'{target_dir}\\temp_dir'
+
+        # download client
+        dlClient = Downloader(target_dir, temp_download_dir, concurrency_per_file)
 
         # get user inputs
         ep_range = input("\nEnter episodes to download (ex: 1-16): ") or "all"
@@ -157,7 +183,7 @@ if __name__ == '__main__':
 
         proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower()
         if proceed == 'y':
-            start_downloader(target_dl_links, target_dir, temp_download_dir, concurrency_per_file)
+            dlClient.start_downloader(target_dl_links, max_parallel_downloads)
         else:
             print("Download halted on user input")
 

@@ -9,4 +9,6 @@ anime:
 download_dir: 'C:\Users\HP\Downloads\Video'
 # if set to auto, creates a temp location under the target folder
 temp_download_dir: 'auto'
+# concurrency to load segments in a m3u8 file
 concurrency_per_file: 10
+max_parallel_downloads: 2

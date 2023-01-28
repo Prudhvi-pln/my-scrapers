@@ -77,7 +77,7 @@ class AnimeClient():
     def anime_search_results(self, items):
         for idx, item in enumerate(items):
             print(f"{idx+1}: {item.get('title')} | {item.get('type')}")
-            print(f"   | Episodes: {item.get('episodes')} | Released: {item.get('year')}, {item.get('season')} | Status {item.get('status')}")
+            print(f"   | Episodes: {item.get('episodes')} | Released: {item.get('year')}, {item.get('season')} | Status: {item.get('status')}")
 
     def anime_episode_results(self, items):
         for item in items:
