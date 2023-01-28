@@ -57,13 +57,12 @@ def fetch_m3u8_links(target_links, resolution, episode_prefix):
 
 def m3u8_downloader(url, out_file, temp_dir, concurrency):
     cmd = f'downloadm3u8 -o {out_file} --tempdir {temp_dir} --concurrency {concurrency} {url}'
-    cmd = 'sleep 10;echo hi'
     exec_cmd(cmd)
 
 def start_downloader(links, out_dir, temp_dir, concurrency):
     # create output directory
-    # if not os.path.exists(out_dir): os.makedirs(out_dir)
-    # if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+    if not os.path.exists(out_dir): os.makedirs(out_dir)
+    if not os.path.exists(temp_dir): os.makedirs(temp_dir)
 
     print("\nDownloading episode(s)...")
     for out_file, link in links.items():
