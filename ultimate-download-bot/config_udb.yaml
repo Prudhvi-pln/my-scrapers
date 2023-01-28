@@ -1,0 +1,12 @@
+anime:
+  base_url: 'https://animepahe.com/'
+  search_url: 'api?m=search&q='
+  episodes_list_url: 'api?m=release&sort=episode_asc&id='
+  download_link_url: 'api?m=links&p=kwik&id='
+  episode_url: 'play/_anime_id_/_episode_id_'
+
+# creates a target folder with name of series under this
+download_dir: 'C:\Users\HP\Downloads\Video'
+# if set to auto, creates a temp location under the target folder
+temp_download_dir: 'auto'
+concurrency_per_file: 10
