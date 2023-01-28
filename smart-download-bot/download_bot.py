@@ -16,6 +16,7 @@ from random import randint
 from selenium import webdriver
 from selenium_stealth import stealth
 from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -30,8 +31,19 @@ config_file = 'downloader_config.yaml'
 use_stealth = True
 use_proxy = False
 PROXY = '127.0.0.1:9150'
+manual_solve_time = 60
 
 invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
+
+# countdown timer
+def countdown(time_sec):
+    while time_sec:
+        time_sec -= 1
+        mins, secs = divmod(time_sec, 60)
+        timeformat = '{:02d}:{:02d}'.format(mins, secs)
+        print(timeformat, end='\r')
+        sleep(1)
+    print()
 
 # display progress bar
 class ShowProgressBar():
@@ -52,7 +64,7 @@ class ShowProgressBar():
 # batch downloader
 class BatchDownloader():
     def __init__(self, config_file, type):
-        self.element_waitime = 60
+        self.element_waitime = 30
         self.type = type
         self.filtered_episode_links = {}
         # idm agent & chrome driver
@@ -108,10 +120,10 @@ class BatchDownloader():
                 renderer="Intel Iris OpenGL Engine",
                 fix_hairline=True,
             )
-        self.get_captcha_score()
+        # self.get_captcha_score()
 
     def close_webdriver(self):
-        self.get_captcha_score()
+        # self.get_captcha_score()
         self.driver.close()
         self.driver.quit()
 
@@ -243,7 +255,12 @@ class BatchDownloader():
             # disable full block ad if any.
             # Need not do this if you are using ad-block extension in your profile
             try:
-                self.driver.execute_script("document.querySelector('html > div').style.display = 'none';")
+                self.driver.execute_script('''
+                var div_list = document.querySelectorAll('html > div');
+                var div_array = [...div_list];
+                div_array.forEach(div => { div.style.display = 'none';});
+                ''')
+                # document.querySelector('html > div').style.display = 'none';")
             except:
                 pass
 
@@ -252,7 +269,7 @@ class BatchDownloader():
 
         def wait(delay=2):
             # increase sleep time as retry count increases
-            sleep_time = randint(retry, delay*retry)
+            sleep_time = randint(delay, delay*retry)
             self.driver.implicitly_wait(sleep_time)
             # Ads may popup during waiting.
             self.close_ads()
@@ -266,59 +283,60 @@ class BatchDownloader():
 
         try:
             click_on_captcha()
-        except:
+        except Exception as e:
             # close ads and repeat
             self.close_ads()
             click_on_captcha()
 
-        # find iframe for audio captcha (in case of multiple iframes)
+        audioBtnFrame = None
         wait()
-        allIframesLen = self.driver.find_elements(By.TAG_NAME, 'iframe')
-        audioBtnFound = False
-        audioBtnFrame = ''
-        self.close_ads()
+        self.driver.switch_to.default_content()
+        iframes = self.driver.find_elements(By.TAG_NAME, 'iframe')
 
-        for index in range(len(allIframesLen)):
-            self.driver.switch_to.default_content()
-            iframe = self.driver.find_elements(By.TAG_NAME, 'iframe')[index]
-            self.driver.switch_to.frame(iframe)
+        # find iframe for audio captcha (in case of multiple iframes)
+        for index in range(len(iframes)):
             try:
-                wait()
-                audioBtn = self.driver.find_element(By.ID, 'recaptcha-audio-button') or self.driver.find_element(By.ID, 'recaptcha-anchor')
+                self.close_ads()
+                self.driver.switch_to.default_content()
+                iframe = self.driver.find_elements(By.TAG_NAME, 'iframe')[index]
+                self.driver.switch_to.frame(iframe)
+                wait(1)
+                audioBtn = self.driver.find_element(By.ID, 'recaptcha-audio-button')
                 audioBtn.click()
-                audioBtnFound = True
                 audioBtnFrame = iframe
                 break
             except Exception as e:
                 pass
 
-        if audioBtnFound:
-            # sometimes you need to solve captcha multiple times. So, keep solving...
-            while True:
-                try:
-                    sleep(3)
-                    # check if captcha is solved
-                    self.driver.switch_to.default_content()
-                    WebDriverWait(self.driver, self.element_waitime).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="btn-submit"]'))).click()
-                    print("Captcha solved!!!")
-                    break
-                except ElementClickInterceptedException as ecie:
-                    # if not solved, retry again
-                    wait()
-                    self.driver.switch_to.frame(audioBtnFrame)
-                    href = self.driver.find_element(By.ID, 'audio-source').get_attribute('src')
-                    response = requests.get(href, stream=True)
-                    self.save_file(response, filename)
-                    response = self.audio2text(os.getcwd() + '/' + filename)
-
-                    wait()
-                    inputbtn = self.driver.find_element(By.ID, 'audio-response')
-                    if inputbtn.is_enabled():
-                        inputbtn.send_keys(response)
-                        inputbtn.send_keys(Keys.ENTER)
-
-        else:
+        if audioBtnFrame is None:
             print('Audio Captcha not found.')
+            return 1
+
+        # sometimes you need to solve captcha multiple times. So, keep solving...
+        while True:
+            try:
+                wait(3)
+                # check if captcha is solved
+                self.driver.switch_to.default_content()
+                WebDriverWait(self.driver, self.element_waitime).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="btn-submit"]'))).click()
+                print("Captcha solved!!!")
+                return 0
+            except ElementClickInterceptedException as ecie:
+                # if not solved, retry again
+                wait()
+                self.driver.switch_to.frame(audioBtnFrame)
+                href = self.driver.find_element(By.ID, 'audio-source').get_attribute('src')
+                response = requests.get(href, stream=True)
+                self.save_file(response, filename)
+                response = self.audio2text(os.getcwd() + '/' + filename)
+
+                wait()
+                inputbtn = self.driver.find_element(By.ID, 'audio-response')
+                inputbtn.send_keys(response)
+                inputbtn.send_keys(Keys.ENTER)
+            except NoSuchElementException as nse:
+                print("BLOCKED")
+                return 1
 
     def get_download_urls_from_web(self, referer_link, retry):
 
@@ -331,10 +349,21 @@ class BatchDownloader():
             urls = WebDriverWait(self.driver, self.element_waitime).until(EC.presence_of_element_located((By.XPATH, f'//*[@id="content-download"]/div[1]'))).find_elements('xpath','.//div/a')
             if len(urls) == 0:
                 # solve audio captcha
-                self.captcha_solver(retry)
+                status = self.captcha_solver(retry)
+                self.close_ads()
+
+                # wait for user to solve it manually if bot failed
+                if status == 1:
+                    print(f'      Waiting {manual_solve_time}s for user to solve the captcha manually...', end=' ')
+                    try:
+                        countdown(manual_solve_time)
+                    except KeyboardInterrupt as ki:
+                        print('Solved')
+                    # switch to first tab. due to popup ads
+                    self.driver.switch_to.window(self.driver.window_handles[0])
+                    WebDriverWait(self.driver, self.element_waitime).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="btn-submit"]'))).click()
 
                 # submit captcha after solved
-                self.close_ads()
                 WebDriverWait(self.driver, self.element_waitime).until(EC.presence_of_element_located((By.XPATH, '//*[@id="content-download"]/div[1]/div[2]')))
                 self.close_ads()
                 urls = self.driver.find_element(By.XPATH, f'//*[@id="content-download"]/div[1]').find_elements('xpath','.//div/a')
@@ -359,18 +388,19 @@ class BatchDownloader():
         # load from web using browser
         else:
             # retry logic if download links are not fetched
-            for retry in range(retries):
+            for retry in range(1, retries+1):
                 download_links = self.get_download_urls_from_web(referer_link, retry)
                 if len(download_links) > 1:
                     break
                 else:
-                    print(f"  Failed to fetch download links. Retry count: {retry+1}")
-                    if retry+1 < retries: self.reopen_webdriver()
+                    print(f"  Failed to fetch download links. Retry count: {retry}")
+                    if retry < retries: self.reopen_webdriver()
 
         # print links
-        for link in download_links:
-            if link != 'source':
-                print(f"  {link}: {download_links[link]}")
+        print(f"  Available Resolutions: {list(download_links.keys())[1:]}")
+        # for link in download_links:
+        #     if link != 'source':
+        #         print(f"  {link}: {download_links[link]}")
 
         return download_links
 

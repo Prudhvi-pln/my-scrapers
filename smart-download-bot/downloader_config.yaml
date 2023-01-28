@@ -14,10 +14,10 @@ anime:
   max_download_wait_time_in_sec: 600
 
 drama:
-  base_url: 'https://www.1dramacool.co/'
-  search_url: '?type=movies&s='
-  # base_url: 'https://dramacool.sr/'
-  # search_url: 'search?type=drama&keyword='
+  # base_url: 'https://www.1dramacool.co/'
+  # search_url: '?type=movies&s='
+  base_url: 'https://dramacool.sr/'
+  search_url: 'search?type=drama&keyword='
   downloader: 'idm'
   download_dir: 'C:\Users\HP\Downloads\Video'
   search_element: 'ul.list-episode-item li'
