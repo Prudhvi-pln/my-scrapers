@@ -17,9 +17,11 @@ contains collection of my web scrapers for various uses mostly entire series dow
  - Script: `download_bot.py`
  - Configuration: `downloader_config.yaml`
  - Version: `2.0`
- - Description: `bot to download both anime & drama series/movie`
+ - Description: `bot to download both anime & drama series/movie. Works 50% of the time`
 
  ### Changelog
+  - Version: `2.4`
+    - Added manual solving support for captcha
   - Version: `2.3`
     - Added multi-threading for parallel downloads
     - Added cache while retrieving download links
