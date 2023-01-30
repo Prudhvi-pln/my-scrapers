@@ -195,20 +195,6 @@ if __name__ == '__main__':
             print('\nAvailable Episodes Details:')
             client.anime_episode_results(episodes)
 
-        # output settings for m3u8
-        anime_title = target_anime['title']
-        for i in invalid_chars:
-            anime_title = anime_title.replace(i, '')
-        target_dir = f"{config['download_dir']}\\{anime_title} ({target_anime['year']})"
-        episode_prefix = f"{anime_title} episode"
-        concurrency_per_file = config['concurrency_per_file']
-        temp_download_dir = config['temp_download_dir']
-        if temp_download_dir == 'auto':
-            temp_download_dir = f'{target_dir}\\temp_dir'
-
-        # download client
-        dlClient = HLSDownloader(target_dir, temp_download_dir, concurrency_per_file)
-
         # get user inputs
         ep_range = input("\nEnter episodes to download (ex: 1-16): ") or "all"
         if ep_range == 'all':
@@ -229,6 +215,12 @@ if __name__ == '__main__':
             print("No episodes are available for download!")
             exit(0)
 
+        # set output names
+        anime_title = target_anime['title']
+        episode_prefix = f"{anime_title} episode"
+        for i in invalid_chars:
+            anime_title = anime_title.replace(i, '')
+
         # get m3u8 link for the specified resolution
         resolution = input("\nEnter download resolution (360|480|720|1080) [default=720]: ") or "720"
         print('\nFetching Episode links:')
@@ -240,6 +232,16 @@ if __name__ == '__main__':
 
         proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower()
         if proceed == 'y':
+            # output settings for m3u8
+            target_dir = f"{config['download_dir']}\\{anime_title} ({target_anime['year']})"
+            concurrency_per_file = config['concurrency_per_file']
+            temp_download_dir = config['temp_download_dir']
+            if temp_download_dir == 'auto':
+                temp_download_dir = f'{target_dir}\\temp_dir'
+
+            # download client
+            dlClient = HLSDownloader(target_dir, temp_download_dir, concurrency_per_file)
+
             dlClient.start_downloader(target_dl_links, max_parallel_downloads)
         else:
             print("Download halted on user input")
@@ -248,6 +250,6 @@ if __name__ == '__main__':
         print('User interrupted')
         exit(0)
 
-    # except Exception as e:
-    #     print(f'Unknown error occured: {e}')
-    #     exit(1)
+    except Exception as e:
+        print(f'Unknown error occured: {e}')
+        exit(1)
