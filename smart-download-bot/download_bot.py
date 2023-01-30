@@ -247,8 +247,8 @@ class BatchDownloader():
         if self.type == 'anime':
             self.anime_id = soup.select('input#movie_id')[0]['value']
             self.print_anime_episodes_info(self.episode_list)
-        elif self.type == 'drama':
-            self.print_drama_episodes_info(self.episode_list)
+        # elif self.type == 'drama':
+        #     self.print_drama_episodes_info(self.episode_list)
 
     def close_ads(self):
         if not self.profile_details['use_profile']:

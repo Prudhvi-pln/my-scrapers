@@ -1,7 +1,6 @@
 __author__ = 'Prudhvi PLN'
 
 import json
-import re
 import requests
 from urllib.parse import quote_plus
 
@@ -17,6 +16,7 @@ class AnimeClient():
 
     def _send_request(self, url, decode_json=True, referer=None):
         response = requests.get(url, headers={'referer': referer}) if referer else requests.get(url)
+        # print(response)
         if response.status_code == 200:
             if not decode_json:
                 return response.text
@@ -28,18 +28,9 @@ class AnimeClient():
 
     def _get_kwik_links(self, ep_id):
         response = self._send_request(self.download_link_url + ep_id, False)
+        # print(response)
 
         return json.loads(response)['data']
-
-    def _extract_m3u8_link(self, text):
-        _match = re.search("m3u8.*https", text)
-        if _match:
-            raw_link = _match.group(0)
-            _r = raw_link.split('|')[::-1]
-            parsed_link = f'{_r[0]}://{_r[1]}-{_r[2]}' + '.' + '.'.join(_r[3:6]) + '/' + '/'.join(_r[6:]).replace('/m3u8','.m3u8')
-            return parsed_link
-        else:
-            raise Exception('m3u8 link extraction failed')
 
     def search(self, keyword):
         # url decode the search word
@@ -61,17 +52,17 @@ class AnimeClient():
                 response = self._get_kwik_links(episode.get('session'))
                 if response is not None:
                     self.episode_ids[episode.get('episode')] = episode.get('session')
-                    download_links[episode.get('episode')] = response
+                    # filter out eng dub links
+                    download_links[episode.get('episode')] = [ _res for _res in response for k in _res.values() if k.get('audio') != 'eng']
 
         return download_links
 
-    def get_m3u8_link(self, kwik_link, ep_no):
+    def get_m3u8_content(self, kwik_link, ep_no):
         ep_id = self.episode_ids[ep_no]
         referer_link = self.episode_url.replace('_anime_id_', 'self.anime_id').replace('_episode_id_', ep_id)
         response = self._send_request(kwik_link, False, referer_link)
-        m3u8_link = self._extract_m3u8_link(response)
 
-        return m3u8_link
+        return response
 
     def anime_search_results(self, items):
         for idx, item in enumerate(items):
@@ -90,5 +81,5 @@ class AnimeClient():
             for _res in details:
                 _reskey = next(iter(_res))
                 filesize = _res[_reskey]['filesize'] / (1024**2)
-                info += f' {_reskey} ({filesize:.2f} MB) |'
+                info += f' {_reskey} ({filesize:.2f} MB) [{_res[_reskey]["audio"]}] |'
             print(info)

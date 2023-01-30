@@ -1,11 +1,13 @@
-__version__ = '1.1'
+__version__ = '1.2'
 __author__ = 'Prudhvi PLN'
 
 import os
+import re
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from subprocess import Popen, PIPE
+from time import time
 from Clients.AnimeClient import AnimeClient
 
 config_file = 'config_udb.yaml'
@@ -28,36 +30,40 @@ class HLSDownloader():
         if len(os.listdir(self.temp_dir)) == 0:
             os.rmdir(self.temp_dir)
         else:
-            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads')
+            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads.')
 
         if len(os.listdir(self.out_dir)) == 0: os.rmdir(self.out_dir)
 
     def exec_cmd(self, cmd):
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         # print stdout to console
-        # print(proc.communicate()[0].decode("utf-8"))
+        msg = proc.communicate()[0].decode("utf-8")
         std_err = proc.communicate()[1].decode("utf-8")
         rc = proc.returncode
         if rc != 0:
-            print(f"Error occured: {std_err}")
+            msg = f"Error occured: {std_err}"
+            return (1, msg)
+        return (0, msg)
 
     def m3u8_downloader(self, url, out_file):
         get_current_time = lambda fmt='%F %T': datetime.now().strftime(fmt)
 
         start = get_current_time()
-        start_epoch = get_current_time('%s')
+        start_epoch = int(time())
         print(f'[{start}] Download started for {out_file}...')
 
         if os.path.isfile(f'{self.out_dir}\\{out_file}'):
             # skip file if already exists
-            print(f'[{start}] File already exists. Skipping {out_file}...')
+            return f'[{start}] File already exists. Skipping {out_file}...'
         else:
             # call downloadm3u8 via subprocess
             cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {url}'
-            self.exec_cmd(cmd)
+            status, msg = self.exec_cmd(cmd)
             end = get_current_time()
-            end_epoch = get_current_time('%s')
-            print(f'[{end}] Download complete in {end_epoch-start_epoch}s! File saved as {self.out_dir}\{out_file}')
+            if status != 0:
+                return f'[{end}] Download failed for {out_file}. {msg}'
+            end_epoch = int(time())
+            return f'[{end}] Download complete in {end_epoch-start_epoch}s! File saved as {self.out_dir}\{out_file}'
 
     def start_downloader(self, links, max_parallel_downloads):
 
@@ -88,6 +94,37 @@ def load_yaml(config_file):
             print(f"Error occured while reading yaml file: {exc}")
             exit(1)
 
+def parse_m3u8_link(text):
+    # parse m3u8 link from raw response. normally, javascript should be executed for this
+    # if below logic is still failing, then execute the javascript code from html response
+    # use either selenium in headless or use online compiler api (ex: https://onecompiler.com/javascript)
+    # print(text)
+    get_match = lambda rgx, txt: re.search(rgx, txt).group(0) if re.search(rgx, txt) else False
+    raw_link = get_match("m3u8.*https", text)
+    if not raw_link:
+        raise Exception('m3u8 link extraction failed')
+
+    # print(raw_link)
+    _r = raw_link.split('|')[::-1]
+    parsed_link = f'{_r[0]}://{_r[1]}-{_r[2]}.' + '.'.join(_r[3:6]) + '/'
+
+    # get url format for m3u8. it varies per request. set to default if not found
+    link_fmt = get_match("://.*\';", text)
+    idx_for_url = 6
+    if not link_fmt:
+        parsed_link += '/' + '/'.join(_r[idx_for_url:]) #set to default
+    else:
+        link_fmt = link_fmt.replace('://','').replace("';",'')
+        # url can have some hard-coded values. if url format has any digits, use the same in parsed url
+        for i in re.split('\.|/|-', link_fmt)[5:]:
+            if re.match('^\d+$', i):
+                parsed_link += f'/{i}'
+            else:
+                parsed_link += f'/{_r[idx_for_url]}'
+                idx_for_url += 1
+
+    return parsed_link.replace('/m3u8','.m3u8')
+
 def fetch_m3u8_links(target_links, resolution, episode_prefix):
 
     final_download_dict = {}
@@ -102,7 +139,8 @@ def fetch_m3u8_links(target_links, resolution, episode_prefix):
             try:
                 ep_name = f'{episode_prefix} {ep} - {resolution}P.mp4'
                 kwik_link = res_dict[0]['kwik']
-                ep_link = client.get_m3u8_link(kwik_link, ep)
+                raw_content = client.get_m3u8_content(kwik_link, ep)
+                ep_link = parse_m3u8_link(raw_content)
                 final_download_dict[ep_name] = ep_link
                 print(f'Link found [{ep_link}]')
             except Exception as e:
@@ -210,6 +248,6 @@ if __name__ == '__main__':
         print('User interrupted')
         exit(0)
 
-    except Exception as e:
-        print(f'Unknown error occured: {e}')
-        exit(1)
+    # except Exception as e:
+    #     print(f'Unknown error occured: {e}')
+    #     exit(1)

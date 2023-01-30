@@ -13,7 +13,7 @@ anime:
   min_download_wait_time_in_sec: 10
   max_download_wait_time_in_sec: 600
 
-drama:
+dramacool:
   # base_url: 'https://www.1dramacool.co/'
   # search_url: '?type=movies&s='
   base_url: 'https://dramacool.sr/'
@@ -24,6 +24,19 @@ drama:
   series_info_element: 'div.info p'
   episodes_element: 'ul.all-episode a'
   download_link_element: 'div.plugins2 ul li.download a'
+  max_parallel_downloads: 2
+  min_download_wait_time_in_sec: 10
+  max_download_wait_time_in_sec: 1800
+
+drama:
+  base_url: 'https://www4.myasiantv.cc/'
+  search_url: 'search.html?key='
+  downloader: 'idm'
+  download_dir: 'C:\Users\HP\Downloads\Video'
+  search_element: 'ul.items li'
+  series_info_element: 'div.left p'
+  episodes_element: 'ul.list-episode a'
+  download_link_element: 'div.button a.download'
   max_parallel_downloads: 2
   min_download_wait_time_in_sec: 10
   max_download_wait_time_in_sec: 1800

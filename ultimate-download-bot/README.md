@@ -14,6 +14,9 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
+ - Version 1.2 [2023-01-29]
+   - Fix m3u8 link parser. Bug fixes
+
  - Version 1.1 [2023-01-28]
    - First version
    - Download multiple anime episodes in parallel from animepahe
