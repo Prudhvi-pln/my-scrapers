@@ -1,84 +1,18 @@
-__version__ = '1.2'
+__version__ = '2.0'
 __author__ = 'Prudhvi PLN'
 
 import os
 import re
 import yaml
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from subprocess import Popen, PIPE
-from time import time
+import jsbeautifier as js
+
 from Clients.AnimeClient import AnimeClient
+from Utils.HLSDownloader import start_downloader
 
 config_file = 'config_udb.yaml'
 print_episode_list = True
 # list of invalid characters not allowed in windows file system
 invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
-
-
-class HLSDownloader():
-    def __init__(self, out_dir, temp_dir, concurrency):
-        self.out_dir = out_dir
-        self.temp_dir = temp_dir
-        self.concurrency = concurrency
-
-    def create_out_dirs(self):
-        if not os.path.exists(self.out_dir): os.makedirs(self.out_dir)
-        if not os.path.exists(self.temp_dir): os.makedirs(self.temp_dir)
-
-    def remove_out_dirs(self):
-        if len(os.listdir(self.temp_dir)) == 0:
-            os.rmdir(self.temp_dir)
-        else:
-            print('WARN: temp dir is not empty. temp dir is retained for resuming incomplete downloads.')
-
-        if len(os.listdir(self.out_dir)) == 0: os.rmdir(self.out_dir)
-
-    def exec_cmd(self, cmd):
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        # print stdout to console
-        msg = proc.communicate()[0].decode("utf-8")
-        std_err = proc.communicate()[1].decode("utf-8")
-        rc = proc.returncode
-        if rc != 0:
-            msg = f"Error occured: {std_err}"
-            return (1, msg)
-        return (0, msg)
-
-    def m3u8_downloader(self, url, out_file):
-        get_current_time = lambda fmt='%F %T': datetime.now().strftime(fmt)
-
-        start = get_current_time()
-        start_epoch = int(time())
-        print(f'[{start}] Download started for {out_file}...')
-
-        if os.path.isfile(f'{self.out_dir}\\{out_file}'):
-            # skip file if already exists
-            return f'[{start}] File already exists. Skipping {out_file}...'
-        else:
-            # call downloadm3u8 via subprocess
-            cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {url}'
-            status, msg = self.exec_cmd(cmd)
-            end = get_current_time()
-            if status != 0:
-                return f'[{end}] Download failed for {out_file}. {msg}'
-            end_epoch = int(time())
-            return f'[{end}] Download complete in {end_epoch-start_epoch}s! File saved as {self.out_dir}\{out_file}'
-
-    def start_downloader(self, links, max_parallel_downloads):
-
-        # create output directory
-        self.create_out_dirs()
-        print("\nDownloading episode(s)...")
-
-        # start downloads in parallel threads
-        with ThreadPoolExecutor(max_workers=max_parallel_downloads, thread_name_prefix='udb-') as executor:
-            results = [ executor.submit(self.m3u8_downloader, link, out_file) for out_file, link in links.items() ]
-            for result in as_completed(results):
-                print(result.result())
-
-        # remove temp dir once completed and dir is empty
-        self.remove_out_dirs()
 
 
 # load yaml config into dict
@@ -95,39 +29,28 @@ def load_yaml(config_file):
             exit(1)
 
 def parse_m3u8_link(text):
-    # parse m3u8 link from raw response. normally, javascript should be executed for this
+    # parse m3u8 link from raw response.
     # if below logic is still failing, then execute the javascript code from html response
     # use either selenium in headless or use online compiler api (ex: https://onecompiler.com/javascript)
     # print(text)
-    get_match = lambda rgx, txt: re.search(rgx, txt).group(0) if re.search(rgx, txt) else False
-    raw_link = get_match("m3u8.*https", text)
-    if not raw_link:
-        raise Exception('m3u8 link extraction failed')
+    _regex_extract = lambda rgx, txt, grp: re.search(rgx, txt).group(grp) if re.search(rgx, txt) else False
+    js_code = _regex_extract(";eval\(.*\)", text, 0)
+    if not js_code:
+        raise Exception('m3u8 link extraction failed. js code not found')
 
-    # print(raw_link)
-    _r = raw_link.split('|')[::-1]
-    parsed_link = f'{_r[0]}://{_r[1]}-{_r[2]}.' + '.'.join(_r[3:6]) + '/'
+    try:
+        parsed_js_code = js.beautify(js_code.replace(';', '', 1))
+    except Exception as e:
+        raise Exception('m3u8 link extraction failed. Unable to execute js')
 
-    # get url format for m3u8. it varies per request. set to default if not found
-    link_fmt = get_match("://.*\';", text)
-    idx_for_url = 6
-    if not link_fmt:
-        parsed_link += '/' + '/'.join(_r[idx_for_url:]) #set to default
-    else:
-        link_fmt = link_fmt.replace('://','').replace("';",'')
-        # url can have some hard-coded values. if url format has any digits, use the same in parsed url
-        for i in re.split('\.|/|-', link_fmt)[5:]:
-            if re.match('^\d+$', i):
-                parsed_link += f'/{i}'
-            else:
-                parsed_link += f'/{_r[idx_for_url]}'
-                idx_for_url += 1
+    parsed_link = _regex_extract('http.*.m3u8', parsed_js_code, 0)
+    if not parsed_link:
+        raise Exception('m3u8 link extraction failed. link not found')
 
-    return parsed_link.replace('/m3u8','.m3u8')
+    return parsed_link
 
-def fetch_m3u8_links(target_links, resolution, episode_prefix):
+def fetch_m3u8_links(ac, target_links, resolution, episode_prefix):
 
-    final_download_dict = {}
     has_key = lambda x, y: y in x.keys()
 
     for ep, link in target_links.items():
@@ -139,14 +62,18 @@ def fetch_m3u8_links(target_links, resolution, episode_prefix):
             try:
                 ep_name = f'{episode_prefix} {ep} - {resolution}P.mp4'
                 kwik_link = res_dict[0]['kwik']
-                raw_content = client.get_m3u8_content(kwik_link, ep)
+                raw_content = ac.get_m3u8_content(kwik_link, ep)
                 ep_link = parse_m3u8_link(raw_content)
-                final_download_dict[ep_name] = ep_link
+                # add m3u8 & kwik links against episode
+                ac._update_udb_dict(ep, {'episodeName': ep_name, 'kwikLink': kwik_link, 'm3u8Link': ep_link})
                 print(f'Link found [{ep_link}]')
             except Exception as e:
                 print(f'Failed to fetch link with error [{e}]')
 
-    return final_download_dict
+    final_dict = ac._get_udb_dict()
+    # print(final_dict)
+
+    return final_dict
 
 
 if __name__ == '__main__':
@@ -196,8 +123,8 @@ if __name__ == '__main__':
             client.anime_episode_results(episodes)
 
         # get user inputs
-        ep_range = input("\nEnter episodes to download (ex: 1-16): ") or "all"
-        if ep_range == 'all':
+        ep_range = input("\nEnter episodes to download (ex: 1-16) [default=ALL]: ") or "all"
+        if str(ep_range).lower() == 'all':
             ep_range = f"{episodes[0]['episode']}-{episodes[-1]['episode']}"
 
         try:
@@ -215,7 +142,7 @@ if __name__ == '__main__':
             print("No episodes are available for download!")
             exit(0)
 
-        # set output names
+        # set output names & make it windows safe
         anime_title = target_anime['title']
         episode_prefix = f"{anime_title} episode"
         for i in invalid_chars:
@@ -224,7 +151,7 @@ if __name__ == '__main__':
         # get m3u8 link for the specified resolution
         resolution = input("\nEnter download resolution (360|480|720|1080) [default=720]: ") or "720"
         print('\nFetching Episode links:')
-        target_dl_links = fetch_m3u8_links(target_ep_links, resolution, episode_prefix)
+        target_dl_links = fetch_m3u8_links(client, target_ep_links, resolution, episode_prefix)
 
         if len(target_dl_links) == 0:
             print('No episodes available to download! Exiting.')
@@ -240,9 +167,7 @@ if __name__ == '__main__':
                 temp_download_dir = f'{target_dir}\\temp_dir'
 
             # download client
-            dlClient = HLSDownloader(target_dir, temp_download_dir, concurrency_per_file)
-
-            dlClient.start_downloader(target_dl_links, max_parallel_downloads)
+            start_downloader(target_dir, temp_download_dir, concurrency_per_file, target_dl_links, max_parallel_downloads)
         else:
             print("Download halted on user input")
 

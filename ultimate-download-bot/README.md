@@ -5,7 +5,7 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
 ## Pre-requisites
  - Python > 3.8
  - pip dependencies: `pip install -r requirements.txt`
-   - Uses m3u8downloader from [here](https://pypi.org/project/m3u8downloader/)
+   - Uses jsbeautifier to execute javascript for retrieving HLS
  - ffmpeg
    - Windows:
      - download ffmpeg from [here](https://ffmpeg.org/download.html)
@@ -14,6 +14,9 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
+ - Version 2.0 [2023-02-02]
+   - All new downloader. Custom implementation of m3u8 downloader and reliable m3u8 parser
+
  - Version 1.2 [2023-01-29]
    - Fix m3u8 link parser. Bug fixes
 
@@ -32,6 +35,13 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
  - Coding this algo is fun, but you are lazy, so you are using m3u8downloader pip package
 
 ### Process Flow
+ - get search results from __search_url__ _(every anime has a uid)_
+ - for anime selected from above, get the episodes list from __episodes_list_url__ _(every episode has a uid)_
+ - for episodes selected from above, get the download links _(kwik links)_ from __download_link_url__ _(every Kwik download link has a uid)_
+ - from above kwik links, get the m3u8 stream link _(requires __episode_url__ as referer)_
+ - from above m3u8 links, download the stream data and convert to mp4 _(requires __kwik link__ as referer)_
+
+### Function Flow
 ```
  > Initialize AnimeClient as AC > AC.search > AC.animesearchresults (pretty print)
 
@@ -41,5 +51,7 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
 
  > get required resolution from user > fetchm3u8links > AC.getm3u8content > parsem3u8link (extract m3u8 url by decoding javascript)
 
- > Initialize HLSDownloader as HLS > HLS.startdownloader (start download using ThreadPool) > m3u8downloader (start downloadm3u8 using subprocess)
-```
+ > startdownloader (start download using ThreadPool) > m3u8downloader (start downloadm3u8 using subprocess) > Initialize HLSDownloader as HLS > HLS.downloader()
+ ```
+ - AnimeClient is specific to a website.
+ - HLSDownloader is 90% universal. 10% depends on HLS. If a new technique comes up in HLS, this needs to be updated
