@@ -14,6 +14,11 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
+ - Version 2.1 [2023-02-04]
+   - Added support to retrieve paginated episodes
+   - Added headers while downloading segments to avoid Connection Reset Error (if still doesn't work, need to implement retry logic)
+   - Generalized parallel downloader
+
  - Version 2.0 [2023-02-02]
    - All new downloader. Custom implementation of m3u8 downloader and reliable m3u8 parser
 
@@ -40,6 +45,12 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
  - for episodes selected from above, get the download links _(kwik links)_ from __download_link_url__ _(every Kwik download link has a uid)_
  - from above kwik links, get the m3u8 stream link _(requires __episode_url__ as referer)_
  - from above m3u8 links, download the stream data and convert to mp4 _(requires __kwik link__ as referer)_
+ - Download Logic:
+   - get content of m3u8 file and download all links (segments & keys) to a local temp dir
+   - rewrite http links in m3u8 file with local temp paths and download it to temp dir
+   - use ffmpeg to merge and convert the segments into mp4
+   - _Note: ffmpeg can be used to download & convert to mp4 directly but it is sooo slow. So we download segments using threadpool and then convert it to mp4_
+   - We can also convert it without ffmpeg but it is an extra pain
 
 ### Function Flow
 ```

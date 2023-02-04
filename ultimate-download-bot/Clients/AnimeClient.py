@@ -63,10 +63,20 @@ class AnimeClient():
         '''
         fetch all available episodes list in the selected anime
         '''
+        episodes_data = []
         self.anime_id = session
         list_episodes_url = self.episodes_list_url + session
 
-        return self._send_request(list_episodes_url)
+        raw_data = json.loads(self._send_request(list_episodes_url, None, False))
+        last_page = int(raw_data['last_page'])
+        # add first page's episodes
+        episodes_data = raw_data['data']
+        # if last page is not 1, get episodes from all pages
+        if last_page > 1:
+            for pgno in range(2, last_page+1):
+                episodes_data.extend(self._send_request(f'{list_episodes_url}&page={pgno}'))
+
+        return episodes_data
 
     def fetch_episode_links(self, episodes, ep_start, ep_end):
         '''
@@ -110,7 +120,11 @@ class AnimeClient():
         '''
         pretty print episodes list from fetch_episodes_list
         '''
-        for item in items:
+        cnt = show = len(items)
+        if cnt > 30:
+            show = int(input(f'Total {cnt} episodes found. Enter range to display [default=ALL]: ') or cnt)
+            print(f'Showing top {show} episodes:')
+        for item in items[:show]:
             print(f"Episode: {item.get('episode'):02d} | Audio: {item.get('audio')} | Duration: {item.get('duration')} | Release data: {item.get('created_at')}")
 
     def anime_episode_links(self, items):

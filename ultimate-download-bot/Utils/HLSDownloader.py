@@ -14,17 +14,23 @@ class HLSDownloader():
     # https://github.com/josephcappadona/m3u8downloader/blob/master/m3u8downloader/m3u8.py
 
     def __init__(self, out_dir, temp_dir, concurrency, referer_link, out_file, session=None):
-        # create a requests session and use across to re-use cookies
-        self.req_session = session if session else requests.Session()
         self.out_dir = out_dir
         self.temp_dir = f"{temp_dir}\\{out_file.replace('.mp4','')}" #create temp directory per episode
         self.concurrency = concurrency
         self.referer = referer_link
         self.out_file = out_file
         self.m3u8_file = f'{self.temp_dir}\\uwu.m3u8'
+        # create a requests session and use across to re-use cookies
+        self.req_session = session if session else requests.Session()
+        self.req_session.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36",
+            "Accept-Encoding": "*",
+            "Connection": "keep-alive",
+            "Referer": self.referer
+        }
 
     def _get_stream_data(self, url, to_text=False):
-        response = self.req_session.get(url, headers={'referer': self.referer})
+        response = self.req_session.get(url)
         # print(response)
         if response.status_code == 200:
             return response.text if to_text else response.content
@@ -125,7 +131,7 @@ class HLSDownloader():
         cmd = f'ffmpeg -loglevel warning -allowed_extensions ALL -i "{self.m3u8_file}" -c copy -bsf:a aac_adtstoasc "{self.out_dir}\\{self.out_file}"'
         self._exec_cmd(cmd)
 
-    def downloader(self, m3u8_link):
+    def m3u8_downloader(self, m3u8_link):
         # create output directory
         self._create_out_dirs()
 
@@ -152,7 +158,10 @@ class HLSDownloader():
         return (0, None)
 
 
-def m3u8_downloader(out_dir, temp_dir, concurrency, url, referer, out_file):
+def downloader(out_dir, temp_dir, concurrency, **ep_details):
+    m3u8_url = ep_details['m3u8Link']
+    referer = ep_details['kwikLink']
+    out_file = ep_details['episodeName']
     # create download client for the episode
     dlClient = HLSDownloader(out_dir, temp_dir, concurrency, referer, out_file)
 
@@ -165,10 +174,10 @@ def m3u8_downloader(out_dir, temp_dir, concurrency, url, referer, out_file):
         # skip file if already exists
         return f'[{start}] File already exists. Skipping {out_file}...'
     else:
-        # cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {url}'
+        # cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {m3u8_url}'
         try:
             # main function where HLS download happens
-            status, msg = dlClient.downloader(url)
+            status, msg = dlClient.m3u8_downloader(m3u8_url)
         except Exception as e:
             status, msg = 1, str(e)
 
@@ -180,18 +189,12 @@ def m3u8_downloader(out_dir, temp_dir, concurrency, url, referer, out_file):
         if status != 0:
             return f'[{end}] Download failed for {out_file}. {msg}'
 
+        def pretty_time(sec):
+            h, m, s = sec // 3600, sec % 3600 // 60, sec % 3600 % 60
+            return '{:02d}h {:02d}m {:02d}s'.format(h,m,s) if h > 0 else '{:02d}m {:02d}s'.format(m,s)
         end_epoch = int(time())
-        return f'[{end}] Download completed in {end_epoch-start_epoch}s! File saved as {out_dir}\{out_file}'
-
-def start_downloader(out_dir, temp_dir, concurrency, links, max_parallel_downloads):
-
-    print("\nDownloading episode(s)...")
-
-    # start downloads in parallel threads
-    with ThreadPoolExecutor(max_workers=max_parallel_downloads, thread_name_prefix='udb-') as executor:
-        results = [ executor.submit(m3u8_downloader, out_dir, temp_dir, concurrency, val['m3u8Link'], val['kwikLink'], val['episodeName']) for val in links.values() ]
-        for result in as_completed(results):
-            print(result.result())
+        download_time = pretty_time(end_epoch-start_epoch)
+        return f'[{end}] Download completed for {out_file} in {download_time}!'
 
 # if __name__ == '__main__':
 #     out_dir = r'C:\Users\HP\Downloads\Video\Gokushufudou Part 2 (2021)'
@@ -200,4 +203,4 @@ def start_downloader(out_dir, temp_dir, concurrency, links, max_parallel_downloa
 #     url = 'https://eu-092.cache.nextcdn.org/stream/09/10/47c1fbad4e6ee390529f0f8bec3a2871e30c1522908ec4154e6071b88b0825a9/uwu.m3u8'
 #     referer = 'https://kwik.cx/e/mIQCDxoHo2pA'
 #     out_file = 'Gokushufudou Part 2 episode 6 - 360P.mp4'
-#     print(m3u8_downloader(out_dir, temp_dir, concurrency, url, referer, out_file))
+#     print(downloader(out_dir, temp_dir, concurrency, url, referer, out_file))

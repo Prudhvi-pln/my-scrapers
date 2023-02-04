@@ -1,13 +1,14 @@
-__version__ = '2.0'
+__version__ = '2.1'
 __author__ = 'Prudhvi PLN'
 
 import os
 import re
 import yaml
 import jsbeautifier as js
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from Clients.AnimeClient import AnimeClient
-from Utils.HLSDownloader import start_downloader
+from Utils.HLSDownloader import downloader
 
 config_file = 'config_udb.yaml'
 print_episode_list = True
@@ -54,7 +55,7 @@ def fetch_m3u8_links(ac, target_links, resolution, episode_prefix):
     has_key = lambda x, y: y in x.keys()
 
     for ep, link in target_links.items():
-        print(f'Episode: {ep}', end=' | ')
+        print(f'Episode: {ep:02d}', end=' | ')
         res_dict = [ i.get(resolution) for i in link if has_key(i, resolution) ]
         if len(res_dict) == 0:
             print(f'Resolution [{resolution}] not found')
@@ -70,10 +71,20 @@ def fetch_m3u8_links(ac, target_links, resolution, episode_prefix):
             except Exception as e:
                 print(f'Failed to fetch link with error [{e}]')
 
-    final_dict = ac._get_udb_dict()
+    final_dict = { k:v for k,v in ac._get_udb_dict().items() if v.get('m3u8Link') is not None }
     # print(final_dict)
 
     return final_dict
+
+def start_downloader(download_fn, out_dir, temp_dir, concurrency, links, max_parallel_downloads):
+
+    print(f"\nDownloading episode(s) to {out_dir}...")
+
+    # start downloads in parallel threads
+    with ThreadPoolExecutor(max_workers=max_parallel_downloads, thread_name_prefix='udb-') as executor:
+        results = [ executor.submit(download_fn, out_dir, temp_dir, concurrency, **val) for val in links.values() ]
+        for result in as_completed(results):
+            print(result.result())
 
 
 if __name__ == '__main__':
@@ -148,8 +159,20 @@ if __name__ == '__main__':
         for i in invalid_chars:
             anime_title = anime_title.replace(i, '')
 
+        # get available resolutions from first item.
+        # remaining will have same set of resolutions. if not, please swap it with hard-coded list
+        valid_resolutions = [ next(iter(i)) for i in next(iter(target_ep_links.values())) ]
+        # valid_resolutions = ['360','480','720','1080']
+
+        # get valid resolution from user
+        while True:
+            resolution = input(f"\nEnter download resolution ({'|'.join(valid_resolutions)}) [default=720]: ") or "720"
+            if resolution not in valid_resolutions:
+                print(f'Invalid Resolution [{resolution}] entered! Please give a valid resolution!')
+            else:
+                break
+
         # get m3u8 link for the specified resolution
-        resolution = input("\nEnter download resolution (360|480|720|1080) [default=720]: ") or "720"
         print('\nFetching Episode links:')
         target_dl_links = fetch_m3u8_links(client, target_ep_links, resolution, episode_prefix)
 
@@ -166,8 +189,8 @@ if __name__ == '__main__':
             if temp_download_dir == 'auto':
                 temp_download_dir = f'{target_dir}\\temp_dir'
 
-            # download client
-            start_downloader(target_dir, temp_download_dir, concurrency_per_file, target_dl_links, max_parallel_downloads)
+            # invoke downloader using a threadpool
+            start_downloader(downloader, target_dir, temp_download_dir, concurrency_per_file, target_dl_links, max_parallel_downloads)
         else:
             print("Download halted on user input")
 
