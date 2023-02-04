@@ -5,15 +5,17 @@ anime:
   downloader: 'idm'
   download_dir: 'C:\Users\HP\Downloads\Video'
   search_element: 'ul.items li'
+  search_title: 'p.name'
   series_info_element: 'div.anime_info_body p'
   episodes_element: 'ul#episode_page a'
   episodes_retrieve_url: 'https://ajax.gogo-load.com/ajax/load-list-episode?ep_start={ep_start}&ep_end={ep_end}&id={id}'
+  episode_number: ('div', 'name')
   download_link_element: 'div.favorites_book ul li a'
   max_parallel_downloads: 4
   min_download_wait_time_in_sec: 10
   max_download_wait_time_in_sec: 600
 
-dramacool:
+drama2:
   # base_url: 'https://www.1dramacool.co/'
   # search_url: '?type=movies&s='
   base_url: 'https://dramacool.sr/'
@@ -21,8 +23,10 @@ dramacool:
   downloader: 'idm'
   download_dir: 'C:\Users\HP\Downloads\Video'
   search_element: 'ul.list-episode-item li'
+  search_title: 'h3.title'
   series_info_element: 'div.info p'
   episodes_element: 'ul.all-episode a'
+  episode_number: 'h3'
   download_link_element: 'div.plugins2 ul li.download a'
   max_parallel_downloads: 2
   min_download_wait_time_in_sec: 10
@@ -34,8 +38,10 @@ drama:
   downloader: 'idm'
   download_dir: 'C:\Users\HP\Downloads\Video'
   search_element: 'ul.items li'
+  search_title: 'h2 a'
   series_info_element: 'div.left p'
   episodes_element: 'ul.list-episode a'
+  episode_number: ''
   download_link_element: 'div.button a.download'
   max_parallel_downloads: 2
   min_download_wait_time_in_sec: 10

@@ -195,10 +195,7 @@ class BatchDownloader():
         for idx, item in enumerate(items):
             item_url = item.find('a')['href']
             item_url = self.config['base_url'] + item_url if item_url.startswith('/') else item_url
-            try:
-                item_title = item.find('a')['title']
-            except KeyError as ke:
-                item_title = item.select('.title')[0].text
+            item_title = item.select(self.config['search_title'])[0].text.strip()
             dict[idx+1] = [item_title, item_url]
 
         return dict
@@ -214,22 +211,27 @@ class BatchDownloader():
                     print(', '.join([ i.text.replace(', ','').strip() for i in detail.find_all('a') ]))
                 else:
                     print(detail.text.replace('"','').strip())
+            else:
+                print(detail.text.replace('"','').strip())
 
     def print_drama_episodes_info(self, episode_list):
-        tot = len(episode_list)
-        sub, raw = 0, 0
-        for i in episode_list:
-            if i.find('span', {'class': 'SUB'}): sub += 1
-            elif i.find('span', {'class': 'RAW'}): raw += 1
-        print("\nEpisodes summary till date:")
-        print(f"Total episodes: {tot}")
-        print(f"Raw episodes: {raw}")
-        print(f"Subbed episodes: {sub}")
+        try:
+            tot = len(episode_list)
+            sub, raw = 0, 0
+            for i in episode_list:
+                if i.find('span', {'class': 'SUB'}): sub += 1
+                elif i.find('span', {'class': 'RAW'}): raw += 1
+            print("\nEpisodes summary till date:")
+            print(f"Total episodes: {tot}")
+            print(f"Raw episodes: {raw}")
+            print(f"Subbed episodes: {sub}")
 
-        print("\nRecent episode details:")
-        print(f"Name: {episode_list[0].find('h3').text.strip()}")
-        print(f"Type: {episode_list[0].find('span', {'class': 'type'}).text}")
-        print(f"Last updated on: {episode_list[0].find('span', {'class': 'time'}).text}")
+            print("\nRecent episode details:")
+            print(f"Name: {episode_list[0].find('h3').text.strip()}")
+            print(f"Type: {episode_list[0].find('span', {'class': 'type'}).text}")
+            print(f"Last updated on: {episode_list[0].find('span', {'class': 'time'}).text}")
+        except Exception as e:
+            pass
 
     def print_anime_episodes_info(self, episode_list):
         print("\nEpisodes summary till date:")
@@ -239,16 +241,18 @@ class BatchDownloader():
     def fetch_series_details(self, target):
         print("Navigating to url: " + target[1])
         soup = self.get_bsoup(target[1])
-        info = soup.select(self.config['series_info_element'])
-        # print details of drama
-        self.print_series_info(target, info)
+        if self.config['series_info_element'] != '':
+            info = soup.select(self.config['series_info_element'])
+            # print details of drama
+            self.print_series_info(target, info)
         # fetch episode list & print details
         self.episode_list = soup.select(self.config['episodes_element'])
+        # print(self.episode_list)
         if self.type == 'anime':
             self.anime_id = soup.select('input#movie_id')[0]['value']
             self.print_anime_episodes_info(self.episode_list)
-        # elif self.type == 'drama':
-        #     self.print_drama_episodes_info(self.episode_list)
+        elif self.type == 'drama':
+            self.print_drama_episodes_info(self.episode_list)
 
     def close_ads(self):
         if not self.profile_details['use_profile']:
@@ -424,8 +428,12 @@ class BatchDownloader():
             self.episode_list = self.get_bsoup(episodes_retrieve_url).select('ul a')
 
         for episode in self.episode_list[::-1]:
-            key = 'h3' if self.type == 'drama' else ('div', 'name')
-            ep_no = episode.find(key).text.strip().split()[-1]
+            if self.config['episode_number'] != '':
+                key = episode.find(self.config['episode_number'])
+            else:
+                key = episode
+            ep_no = key.text.strip().split()[-1]
+            # print(f'Ep no: {ep_no}')
 
             if int(ep_no) >= ep_start and int(ep_no) <= ep_end:
 
