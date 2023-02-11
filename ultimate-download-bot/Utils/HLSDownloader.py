@@ -6,22 +6,38 @@ import requests
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from requests.adapters import HTTPAdapter
 from subprocess import Popen, PIPE
 from time import time
+from tqdm import tqdm
+from urllib3.util.retry import Retry
+
+from Utils.commons import retry
+
+debug = False
 
 class HLSDownloader():
     # References: https://github.com/Oshan96/monkey-dl/blob/master/anime_downloader/util/hls_downloader.py
     # https://github.com/josephcappadona/m3u8downloader/blob/master/m3u8downloader/m3u8.py
 
-    def __init__(self, out_dir, temp_dir, concurrency, referer_link, out_file, session=None):
-        self.out_dir = out_dir
-        self.temp_dir = f"{temp_dir}\\{out_file.replace('.mp4','')}" #create temp directory per episode
-        self.concurrency = concurrency
+    def __init__(self, dl_config, referer_link, out_file, session=None):
+        self.out_dir = dl_config['download_dir']
+        self.parent_temp_dir = dl_config['temp_download_dir'] if dl_config['temp_download_dir'] != 'auto' else f'{self.out_dir}\\temp_dir'
+        self.temp_dir = f"{self.parent_temp_dir}\\{out_file.replace('.mp4','')}" #create temp directory per episode
+        self.concurrency = dl_config['concurrency_per_file'] if dl_config['concurrency_per_file'] != 'auto' else None
+        self.request_timeout = dl_config['request_timeout']
         self.referer = referer_link
         self.out_file = out_file
         self.m3u8_file = f'{self.temp_dir}\\uwu.m3u8'
         # create a requests session and use across to re-use cookies
         self.req_session = session if session else requests.Session()
+        # add retries with backoff
+        retry = Retry(total=3, backoff_factor=0.1)
+        adapter = HTTPAdapter(max_retries=retry)
+        self.req_session.mount('http://', adapter)
+        self.req_session.mount('https://', adapter)
+        # disable insecure warnings
+        requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
         self.req_session.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36",
             "Accept-Encoding": "*",
@@ -30,7 +46,8 @@ class HLSDownloader():
         }
 
     def _get_stream_data(self, url, to_text=False):
-        response = self.req_session.get(url)
+        # print(f'{self.req_session}: {url}')
+        response = self.req_session.get(url, verify=False, timeout=self.request_timeout)
         # print(response)
         if response.status_code == 200:
             return response.text if to_text else response.content
@@ -43,6 +60,10 @@ class HLSDownloader():
 
     def _remove_out_dirs(self):
         shutil.rmtree(self.temp_dir)
+
+    def _cleanup_out_dirs(self):
+        if len(os.listdir(self.parent_temp_dir)) == 0: os.rmdir(self.parent_temp_dir)
+        if len(os.listdir(self.out_dir)) == 0: os.rmdir(self.out_dir)
 
     def _exec_cmd(self, cmd):
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
@@ -73,21 +94,22 @@ class HLSDownloader():
 
         return uri, iv
 
-    def _collect_ts_urls(self, m3u8_data):
+    def _collect_ts_urls(self, m3u8_link, m3u8_data):
         urls = [url.group(0) for url in re.finditer("https://(.*)\.ts(.*)", m3u8_data)]
         if len(urls) == 0:
             # Relative paths
-            base_url = re.search("(.*)/\S+\.m3u8", self.episode.download_url).group(1)
+            base_url = '/'.join(m3u8_link.split('/')[:-1])
             urls = [base_url + "/" + url.group(0) for url in re.finditer("(.*)\.ts(.*)", m3u8_data)]
 
         return urls
 
+    @retry()
     def _download_segment(self, ts_url):
         try:
             segment_file_nm = ts_url.split('/')[-1]
             segment_file = f"{self.temp_dir}//{segment_file_nm}"
 
-            if os.path.isfile(segment_file):
+            if os.path.isfile(segment_file) and os.path.getsize(segment_file) > 0:
                 return f'Segment file [{segment_file_nm}] already exists. Reusing.'
 
             with open(segment_file, "wb") as ts_file:
@@ -96,23 +118,36 @@ class HLSDownloader():
             return f'Segment file [{segment_file_nm}] downloaded'
 
         except Exception as e:
-            return f'ERROR: Unable to download segment [{segment_file_nm}] with error: {e}'
+            return f'ERROR: Segment download failed [{segment_file_nm}] due to: {e}'
 
     def _download_segments(self, ts_urls):
-        # print(f'[{self.out_file}] Downloading {len(ts_urls)} segments using {self.concurrency} workers...')
+        # print(f'[Epsiode-{ep_no}] Downloading {len(ts_urls)} segments using {self.concurrency} workers...')
         reused_segments = 0
         failed_segments = 0
-        # parallelize download of segments using a threadpool
-        with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
-            results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
-            for result in as_completed(results):
-                if 'ERROR' in result.result():
-                    print(result.result())
-                    failed_segments += 1
-                elif 'Reusing' in result.result():
-                    reused_segments += 1
+        # shorten the name to show only ep number
+        ep_no = self.out_file.split()[-3]
+        # show progress of download
+        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no}') as progress:
+            # parallelize download of segments using a threadpool
+            with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
+                results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
+                for result in as_completed(results):
+                    status = result.result()
+                    if 'ERROR' in status:
+                        print(status)
+                        failed_segments += 1
+                    elif 'Reusing' in status:
+                        reused_segments += 1
+                        # update status only if segment is downloaded
+                        progress.update()
+                    else:
+                        progress.update()
 
-        print(f'[{self.out_file}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
+            seg_status = f'Reused: {reused_segments}'
+            if failed_segments > 0: seg_status += f', Failed: {failed_segments}'
+            progress.set_postfix_str(seg_status)
+
+        if debug: print(f'[Epsiode-{ep_no}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
         if failed_segments > 0:
             raise Exception(f'Failed to download {failed_segments} / {len(ts_urls)} segments')
 
@@ -147,7 +182,7 @@ class HLSDownloader():
         if iv:
             raise Exception("Current code cannot decode IV links")
 
-        ts_urls = self._collect_ts_urls(m3u8_data)
+        ts_urls = self._collect_ts_urls(m3u8_link, m3u8_data)
         self._download_segments(ts_urls)
         self._rewrite_m3u8_file(m3u8_data)
         self._convert_to_mp4()
@@ -158,23 +193,28 @@ class HLSDownloader():
         return (0, None)
 
 
-def downloader(out_dir, temp_dir, concurrency, **ep_details):
+def downloader(ep_details, dl_config):
+    '''
+    download function where HLS Client initialization and download happens
+    Accepts two dicts: download config, episode details
+    Returns download status
+    '''
     m3u8_url = ep_details['m3u8Link']
-    referer = ep_details['kwikLink']
+    referer = ep_details['refererLink']
     out_file = ep_details['episodeName']
+    out_dir = dl_config['download_dir']
     # create download client for the episode
-    dlClient = HLSDownloader(out_dir, temp_dir, concurrency, referer, out_file)
+    dlClient = HLSDownloader(dl_config, referer, out_file)
 
     get_current_time = lambda fmt='%F %T': datetime.now().strftime(fmt)
     start = get_current_time()
     start_epoch = int(time())
-    print(f'[{start}] Download started for {out_file}...')
+    if debug: print(f'[{start}] Download started for {out_file}...')
 
     if os.path.isfile(f'{out_dir}\\{out_file}'):
         # skip file if already exists
-        return f'[{start}] File already exists. Skipping {out_file}...'
+        return f'[{start}] Download skipped for {out_file}. File already exists!'
     else:
-        # cmd = f'downloadm3u8 -o "{self.out_dir}\\{out_file}" --tempdir "{self.temp_dir}" --concurrency {self.concurrency} {m3u8_url}'
         try:
             # main function where HLS download happens
             status, msg = dlClient.m3u8_downloader(m3u8_url)
@@ -182,8 +222,7 @@ def downloader(out_dir, temp_dir, concurrency, **ep_details):
             status, msg = 1, str(e)
 
         # remove target dirs if no files are downloaded
-        if len(os.listdir(temp_dir)) == 0: os.rmdir(temp_dir)
-        if len(os.listdir(out_dir)) == 0: os.rmdir(out_dir)
+        dlClient._cleanup_out_dirs()
 
         end = get_current_time()
         if status != 0:
@@ -197,10 +236,10 @@ def downloader(out_dir, temp_dir, concurrency, **ep_details):
         return f'[{end}] Download completed for {out_file} in {download_time}!'
 
 # if __name__ == '__main__':
-#     out_dir = r'C:\Users\HP\Downloads\Video\Gokushufudou Part 2 (2021)'
-#     temp_dir = r'C:\Users\HP\Downloads\Video\Gokushufudou Part 2 (2021)\temp_dir'
-#     concurrency = 4
-#     url = 'https://eu-092.cache.nextcdn.org/stream/09/10/47c1fbad4e6ee390529f0f8bec3a2871e30c1522908ec4154e6071b88b0825a9/uwu.m3u8'
-#     referer = 'https://kwik.cx/e/mIQCDxoHo2pA'
-#     out_file = 'Gokushufudou Part 2 episode 6 - 360P.mp4'
-#     print(downloader(out_dir, temp_dir, concurrency, url, referer, out_file))
+#     config = {'download_dir': r'C:\Users\HP\Downloads\Video\Eulachacha Waikiki 2 (2019) temp',
+#               'temp_download_dir': r'C:\Users\HP\Downloads\Video\Eulachacha Waikiki 2 (2019)\temp_dir',
+#               'concurrency_per_file': 4,
+#               'request_timeout': 30
+#     }
+#     dict = {'episodeId': 'bd89c830c98859006cdce06eb5ba92a885fe9278f98734434dc84b98b0006e5b', 'episodeLink': 'https://animepahe.com/play/1f4869d2-0cfb-4680-59c9-7ff936726d30/bd89c830c98859006cdce06eb5ba92a885fe9278f98734434dc84b98b0006e5b', 'episodeName': 'Gokushufudou Season 2 episode 4 - 360P.mp4', 'refererLink': 'https://kwik.cx/e/sdl9rsfFlVts', 'm3u8Link': 'https://eu-111.cache.nextcdn.org/stream/11/03/1ad144913c0b8b1e4f9c22a041627ddaff21fffc0b23aa5afee00fc3663410e1/uwu.m3u8'}
+#     print(downloader(dict, config))

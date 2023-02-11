@@ -5,10 +5,24 @@ anime:
   download_link_url: 'api?m=links&p=kwik&id='
   episode_url: 'play/_anime_id_/_episode_id_'
 
-# creates a target folder with name of series under this
-download_dir: 'C:\Users\HP\Downloads\Video'
-# if set to auto, creates a temp location under the target folder
-temp_download_dir: 'auto'
-# concurrency to load segments in a m3u8 file
-concurrency_per_file: 10
-max_parallel_downloads: 2
+drama:
+  base_url: 'https://www4.myasiantv.cc/'
+  search_url: 'search.html?key='
+  search_title_element: 'ul.items li h2 a'
+  search_link_element: 'ul.items li h2 a'
+  series_info_element: 'div.left p'
+  episode_link_element: 'ul.list-episode li h2 a'
+  episode_info_element: 'ul.list-episode li span'
+  stream_links_element: 'div.anime_muti_link div'
+  m3u8_fetch_link: 'https://asianhdplay.net/encrypt-ajax.php?id='
+  openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
+
+DownloaderConfig:
+  # creates a target folder with name of series under this
+  download_dir: 'C:\Users\HP\Downloads\Video'
+  # if set to auto, creates a temp location under the target folder
+  temp_download_dir: 'auto'
+  # concurrency to load segments in a m3u8 file
+  concurrency_per_file: 'auto'
+  request_timeout: 30
+  max_parallel_downloads: 2

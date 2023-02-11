@@ -1,44 +1,42 @@
 __author__ = 'Prudhvi PLN'
 
 import json
-import requests
+import re
+import jsbeautifier as js
 from urllib.parse import quote_plus
 
-class AnimeClient():
+from Clients.BaseClient import BaseClient
+
+
+class AnimeClient(BaseClient):
     def __init__(self, config, session=None):
-        # create a requests session and use across to re-use cookies
-        self.req_session = session if session else requests.Session()
+        super().__init__(session)
         self.base_url = config['base_url']
         self.search_url = self.base_url + config['search_url']
         self.episodes_list_url = self.base_url + config['episodes_list_url']
         self.download_link_url = self.base_url + config['download_link_url']
         self.episode_url = self.base_url + config['episode_url']
         self.anime_id = ''      # anime id. required to create referer link
-        self.udb_episode_dict = {}   # dict containing all details of epsiodes
 
-    def _update_udb_dict(self, parent_key, child_dict):
-        if parent_key in self.udb_episode_dict:
-            self.udb_episode_dict[parent_key].update(child_dict)
-        else:
-            self.udb_episode_dict[parent_key] = child_dict
-
-    def _get_udb_dict(self):
-        return self.udb_episode_dict
-
-    def _send_request(self, url, referer=None, decode_json=True):
+    def _show_search_results(self, key, details):
         '''
-        call response session and return response
+        pretty print anime results based on your search
         '''
-        response = self.req_session.get(url, headers={'referer': referer}) if referer else self.req_session.get(url)
-        # print(response)
-        if response.status_code == 200:
-            if not decode_json:
-                return response.text
-            data = json.loads(response.text)
-            if data['total'] > 0:
-                return data['data']
-        else:
-            print(f'Failed with response code: {response.status_code}')
+        info = f"{key}: {details.get('title')} | {details.get('type')}\n   " + \
+                f"| Episodes: {details.get('episodes')} | Released: {details.get('year')}, {details.get('season')} " + \
+                f"| Status: {details.get('status')}"
+        print(info)
+
+    def _show_episode_links(self, key, details):
+        '''
+        pretty print episode links from fetch_episode_links
+        '''
+        info = f"Episode: {key:02d}"
+        for _res in details:
+            _reskey = next(iter(_res))
+            filesize = _res[_reskey]['filesize'] / (1024**2)
+            info += f' | {_reskey}P ({filesize:.2f} MB) [{_res[_reskey]["audio"]}]'
+        print(info)
 
     def _get_kwik_links(self, ep_id):
         '''
@@ -57,12 +55,19 @@ class AnimeClient():
         search_key = quote_plus(keyword)
         search_url = self.search_url + search_key
 
-        return self._send_request(search_url)
+        response = self._send_request(search_url)
+        if response is not None:
+            # add index to search results
+            response = { idx+1:result for idx, result in enumerate(response) }
+            self.show_search_results(response)
 
-    def fetch_episodes_list(self, session):
+        return response
+
+    def fetch_episodes_list(self, target):
         '''
         fetch all available episodes list in the selected anime
         '''
+        session = target.get('session')
         episodes_data = []
         self.anime_id = session
         list_episodes_url = self.episodes_list_url + session
@@ -90,9 +95,19 @@ class AnimeClient():
                     # add episode uid to udb dict
                     self._update_udb_dict(episode.get('episode'), {'episodeId': episode.get('session')})
                     # filter out eng dub links
-                    download_links[episode.get('episode')] = [ _res for _res in response for k in _res.values() if k.get('audio') != 'eng']
+                    links = [ _res for _res in response for k in _res.values() if k.get('audio') != 'eng']
+                    download_links[episode.get('episode')] = links
+                    self._show_episode_links(episode.get('episode'), links)
 
         return download_links
+
+    def set_out_names(self, target_series):
+        anime_title = self._windows_safe_string(target_series['title'])
+        # set target output dir
+        target_dir = f"{anime_title} ({target_series['year']})"
+        episode_prefix = f"{anime_title} episode"
+
+        return target_dir, episode_prefix
 
     def get_m3u8_content(self, kwik_link, ep_no):
         '''
@@ -106,17 +121,65 @@ class AnimeClient():
 
         return response
 
-    def anime_search_results(self, items):
+    def parse_m3u8_link(self, text):
         '''
-        pretty print anime results based on your search
+        parse m3u8 link from raw response by executing the javascript code
         '''
-        for idx, item in enumerate(items):
-            info = f"{idx+1}: {item.get('title')} | {item.get('type')}\n   " + \
-                   f"| Episodes: {item.get('episodes')} | Released: {item.get('year')}, {item.get('season')} " + \
-                   f"| Status: {item.get('status')}"
-            print(info)
+        # if below logic is still failing, then execute the javascript code from html response
+        # use either selenium in headless or use online compiler api (ex: https://onecompiler.com/javascript)
+        # print(text)
+        _regex_extract = lambda rgx, txt, grp: re.search(rgx, txt).group(grp) if re.search(rgx, txt) else False
+        js_code = _regex_extract(";eval\(.*\)", text, 0)
+        if not js_code:
+            raise Exception('m3u8 link extraction failed. js code not found')
 
-    def anime_episode_results(self, items):
+        try:
+            parsed_js_code = js.beautify(js_code.replace(';', '', 1))
+        except Exception as e:
+            raise Exception('m3u8 link extraction failed. Unable to execute js')
+
+        parsed_link = _regex_extract('http.*.m3u8', parsed_js_code, 0)
+        if not parsed_link:
+            raise Exception('m3u8 link extraction failed. link not found')
+
+        return parsed_link
+
+    def fetch_m3u8_links(self, target_links, resolution, episode_prefix):
+        '''
+        return dict containing m3u8 links based on resolution
+        '''
+        has_key = lambda x, y: y in x.keys()
+
+        for ep, link in target_links.items():
+            print(f'Episode: {ep:02d}', end=' | ')
+            res_dict = [ i.get(resolution) for i in link if has_key(i, resolution) ]
+            if len(res_dict) == 0:
+                print(f'Resolution [{resolution}] not found')
+            else:
+                try:
+                    ep_name = f'{episode_prefix} {ep} - {resolution}P.mp4'
+                    kwik_link = res_dict[0]['kwik']
+                    raw_content = self.get_m3u8_content(kwik_link, ep)
+                    ep_link = self.parse_m3u8_link(raw_content)
+                    # add m3u8 & kwik links against episode
+                    self._update_udb_dict(ep, {'episodeName': ep_name, 'refererLink': kwik_link, 'm3u8Link': ep_link})
+                    print(f'Link found [{ep_link}]')
+                except Exception as e:
+                    print(f'Failed to fetch link with error [{e}]')
+
+        final_dict = { k:v for k,v in self._get_udb_dict().items() if v.get('m3u8Link') is not None }
+        # print(final_dict)
+
+        return final_dict
+
+    def show_search_results(self, items):
+        '''
+        print all anime results based on your search at once if required
+        '''
+        for idx, item in items.items():
+            self._show_search_results(idx, item)
+
+    def show_episode_results(self, items):
         '''
         pretty print episodes list from fetch_episodes_list
         '''
@@ -125,16 +188,11 @@ class AnimeClient():
             show = int(input(f'Total {cnt} episodes found. Enter range to display [default=ALL]: ') or cnt)
             print(f'Showing top {show} episodes:')
         for item in items[:show]:
-            print(f"Episode: {item.get('episode'):02d} | Audio: {item.get('audio')} | Duration: {item.get('duration')} | Release data: {item.get('created_at')}")
+            print(f"Episode: {item.get('episode'):02d} | Audio: {item.get('audio')} | Duration: {item.get('duration')} | Release date: {item.get('created_at')}")
 
-    def anime_episode_links(self, items):
+    def show_episode_links(self, items):
         '''
-        pretty print episode links from fetch_episode_links
+        print all episodes details at once if required
         '''
         for item, details in items.items():
-            info = f"Episode: {item:02d}"
-            for _res in details:
-                _reskey = next(iter(_res))
-                filesize = _res[_reskey]['filesize'] / (1024**2)
-                info += f' | {_reskey}P ({filesize:.2f} MB) [{_res[_reskey]["audio"]}]'
-            print(info)
+            self._show_episode_links(item, details)

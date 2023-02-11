@@ -5,7 +5,8 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
 ## Pre-requisites
  - Python > 3.8
  - pip dependencies: `pip install -r requirements.txt`
-   - Uses jsbeautifier to execute javascript for retrieving HLS
+   - jsbeautifier to execute javascript for retrieving HLS
+   - tqdm to show download progress
  - ffmpeg
    - Windows:
      - download ffmpeg from [here](https://ffmpeg.org/download.html)
@@ -14,12 +15,15 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
- - Version 2.1 [2023-02-04]
-   - Added support to retrieve paginated episodes
-   - Added headers while downloading segments to avoid Connection Reset Error (if still doesn't work, need to implement retry logic)
+ - Version 2.0 [2023-02-11]
+   - Rewritten code completely
+   - Added support to download drama. Finally.. ^_^
+   - Added support to retrieve paginated episodes from AnimePahe
+   - Added headers & custom retry decorator while downloading segments to avoid Connection Reset Error
    - Generalized parallel downloader
+   - Added Progress bar for downloads using tqdm
 
- - Version 2.0 [2023-02-02]
+ - Version 1.5 [2023-02-02]
    - All new downloader. Custom implementation of m3u8 downloader and reliable m3u8 parser
 
  - Version 1.2 [2023-01-29]
@@ -54,15 +58,16 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
 
 ### Function Flow
 ```
- > Initialize AnimeClient as AC > AC.search > AC.animesearchresults (pretty print)
+ > Initialize AnimeClient as AC > AC.search > AC.show_search_results (pretty print)
 
- > AC.fetchepisodeslist (get list of episodes) > AC.animeepisoderesults (pretty print episodes)
+ > AC.fetch_episodes_list (get list of episodes) > AC.show_episode_results (pretty print episodes)
 
- > get episodes required from user > AC.fetchepisodelinks (get kwik links for required episodes in jpn lang) > AC.animeepisodelinks (pretty print)
+ > get episodes required from user > AC.fetch_episode_links (get kwik links for required episodes in jpn lang) > AC.show_episode_links (pretty print)
 
- > get required resolution from user > fetchm3u8links > AC.getm3u8content > parsem3u8link (extract m3u8 url by decoding javascript)
+ > get required resolution from user > fetch_m3u8_links > AC.get_m3u8_content > parse_m3u8_link (extract m3u8 url by decoding javascript)
 
- > startdownloader (start download using ThreadPool) > m3u8downloader (start downloadm3u8 using subprocess) > Initialize HLSDownloader as HLS > HLS.downloader()
+ > batch_downloader (start download using ThreadPool) > m3u8_downloader > Initialize HLSDownloader as HLS > HLS.downloader()
  ```
- - AnimeClient is specific to a website.
+ - AnimeClient is specific to a website
+ - DramaClient is 70% generic. Just modify the config per website
  - HLSDownloader is 90% universal. 10% depends on HLS. If a new technique comes up in HLS, this needs to be updated
