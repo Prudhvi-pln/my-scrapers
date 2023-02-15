@@ -17,18 +17,20 @@ def retry(exceptions=(Exception,), tries=3, delay=2, backoff=2):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            attempt, mdelay = 1, delay
-            while attempt <= tries:
+            attempt, mdelay = 0, delay
+            while attempt < tries:
                 try:
                     return_status = func(*args, **kwargs)
                     if 'ERROR' in return_status:
                         raise Exception(return_status)
                     return return_status
                 except exceptions as e:
-                    print(f'{e} | Retry: {attempt} / {tries}')
+                    # print(f'{e} | Attempt: {attempt} / {tries}')
                     sleep(mdelay)
                     attempt += 1
                     mdelay *= backoff
+                    if attempt >= tries:
+                        print(f'{e} | Final Attempt: {attempt} / {tries}')
             return func(*args, **kwargs)
         return wrapper
     return decorator

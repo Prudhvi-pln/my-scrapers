@@ -34,8 +34,13 @@ class AnimeClient(BaseClient):
         info = f"Episode: {key:02d}"
         for _res in details:
             _reskey = next(iter(_res))
-            filesize = _res[_reskey]['filesize'] / (1024**2)
-            info += f' | {_reskey}P ({filesize:.2f} MB) [{_res[_reskey]["audio"]}]'
+            filesize = _res[_reskey]['filesize']
+            try:
+                filesize = filesize / (1024**2)
+                info += f' | {_reskey}P ({filesize:.2f} MB) [{_res[_reskey]["audio"]}]'
+            except:
+                info += f' | {filesize} [{_res[_reskey]["audio"]}]'
+
         print(info)
 
     def _get_kwik_links(self, ep_id):
@@ -46,6 +51,26 @@ class AnimeClient(BaseClient):
         # print(response)
 
         return json.loads(response)['data']
+    
+    def _get_kwik_links_v2(self, ep_link):
+        '''
+        return json data containing kwik links for a episode. Scrapes html instead of api call as per site structure as on Feb 15, 2023
+        '''
+        response = self._get_bsoup(ep_link)
+        # print(response)
+        links = response.select('div#resolutionMenu button')
+        sizes = response.select('div#pickDownload a')
+        results = []
+        for l,s in zip(links, sizes):
+            res_dict = {}
+            res = l['data-resolution']
+            kwik = l['data-src']
+            audio = l['data-audio']
+            size = s.text.strip()
+            res_dict[res] = {'kwik': kwik, 'audio': audio, 'filesize': size}
+            results.append(res_dict)
+
+        return results
 
     def search(self, keyword):
         '''
@@ -90,10 +115,11 @@ class AnimeClient(BaseClient):
         download_links = {}
         for episode in episodes:
             if int(episode.get('episode')) >= ep_start and int(episode.get('episode')) <= ep_end:
-                response = self._get_kwik_links(episode.get('session'))
+                episode_link = self.episode_url.replace('_anime_id_', self.anime_id).replace('_episode_id_', episode.get('session'))
+                response = self._get_kwik_links_v2(episode_link)
                 if response is not None:
-                    # add episode uid to udb dict
-                    self._update_udb_dict(episode.get('episode'), {'episodeId': episode.get('session')})
+                    # add episode uid & link to udb dict
+                    self._update_udb_dict(episode.get('episode'), {'episodeId': episode.get('session'), 'episodeLink': episode_link})
                     # filter out eng dub links
                     links = [ _res for _res in response for k in _res.values() if k.get('audio') != 'eng']
                     download_links[episode.get('episode')] = links
@@ -113,10 +139,7 @@ class AnimeClient(BaseClient):
         '''
         return response as text of kwik link
         '''
-        ep_id = self.udb_episode_dict[ep_no]['episodeId']
-        referer_link = self.episode_url.replace('_anime_id_', self.anime_id).replace('_episode_id_', ep_id)
-        # add episode link to udb dict
-        self._update_udb_dict(ep_no, {'episodeLink': referer_link})
+        referer_link = self.udb_episode_dict[ep_no]['episodeLink']
         response = self._send_request(kwik_link, referer_link, False)
 
         return response
@@ -157,7 +180,7 @@ class AnimeClient(BaseClient):
                 print(f'Resolution [{resolution}] not found')
             else:
                 try:
-                    ep_name = f'{episode_prefix} {ep} - {resolution}P.mp4'
+                    ep_name = self._windows_safe_string(f'{episode_prefix} {ep} - {resolution}P.mp4')
                     kwik_link = res_dict[0]['kwik']
                     raw_content = self.get_m3u8_content(kwik_link, ep)
                     ep_link = self.parse_m3u8_link(raw_content)

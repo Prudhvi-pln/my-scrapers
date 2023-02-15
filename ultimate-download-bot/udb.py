@@ -1,4 +1,4 @@
-__version__ = '2.0'
+__version__ = '2.1'
 __author__ = 'Prudhvi PLN'
 
 import os
@@ -76,7 +76,7 @@ def batch_downloader(download_fn, links, dl_config, max_parallel_downloads):
 
     dl_status = start_download(links.values(), dl_config)
     # show download status at the end, so that progress bars are not disturbed
-    print('\nDownload Status:')
+    print('\n\nDownload Status:')
     for status in dl_status:
         print(status)
 
@@ -96,6 +96,10 @@ if __name__ == '__main__':
             client = AnimeClient(config[series_type])
         else:
             client = DramaClient(config[series_type])
+
+        # set respective download dir if present
+        if 'download_dir' in config[series_type]:
+            downloader_config['download_dir'] = config[series_type]['download_dir']
 
         # search in an infinite loop till you get your series
         target_series = search_and_select_series()
@@ -162,6 +166,6 @@ if __name__ == '__main__':
         print('User interrupted')
         exit(0)
 
-    except Exception as e:
-        print(f'Error occured: {e}')
-        exit(1)
+    # except Exception as e:
+    #     print(f'Error occured: {e}')
+    #     exit(1)

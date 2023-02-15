@@ -4,6 +4,7 @@ anime:
   episodes_list_url: 'api?m=release&sort=episode_asc&id='
   download_link_url: 'api?m=links&p=kwik&id='
   episode_url: 'play/_anime_id_/_episode_id_'
+  download_dir: 'D:\Anime'
 
 drama:
   base_url: 'https://www4.myasiantv.cc/'
@@ -18,7 +19,7 @@ drama:
   openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
 
 DownloaderConfig:
-  # creates a target folder with name of series under this
+  # creates a target folder with name of series under this. Uses this, if none specified above
   download_dir: 'C:\Users\HP\Downloads\Video'
   # if set to auto, creates a temp location under the target folder
   temp_download_dir: 'auto'

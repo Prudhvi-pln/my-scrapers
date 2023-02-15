@@ -15,6 +15,9 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
+ - Version 2.1 [2023-02-15]
+   - Modified anime client as per updated animepahe site
+
  - Version 2.0 [2023-02-11]
    - Rewritten code completely
    - Added support to download drama. Finally.. ^_^

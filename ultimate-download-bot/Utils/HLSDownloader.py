@@ -9,7 +9,7 @@ from datetime import datetime
 from requests.adapters import HTTPAdapter
 from subprocess import Popen, PIPE
 from time import time
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from urllib3.util.retry import Retry
 
 from Utils.commons import retry
@@ -118,7 +118,7 @@ class HLSDownloader():
             return f'Segment file [{segment_file_nm}] downloaded'
 
         except Exception as e:
-            return f'ERROR: Segment download failed [{segment_file_nm}] due to: {e}'
+            return f'\nERROR: Segment download failed [{segment_file_nm}] due to: {e}'
 
     def _download_segments(self, ts_urls):
         # print(f'[Epsiode-{ep_no}] Downloading {len(ts_urls)} segments using {self.concurrency} workers...')
@@ -127,7 +127,7 @@ class HLSDownloader():
         # shorten the name to show only ep number
         ep_no = self.out_file.split()[-3]
         # show progress of download
-        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no}') as progress:
+        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no}', unit='seg', ascii='░▒█') as progress:
             # parallelize download of segments using a threadpool
             with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
                 results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
@@ -142,10 +142,10 @@ class HLSDownloader():
                         progress.update()
                     else:
                         progress.update()
+                    # add reused / failed segments status
+                    seg_status = f'R/F: {reused_segments}/{failed_segments}'
+                    progress.set_postfix_str(seg_status, refresh=True)
 
-            seg_status = f'Reused: {reused_segments}'
-            if failed_segments > 0: seg_status += f', Failed: {failed_segments}'
-            progress.set_postfix_str(seg_status)
 
         if debug: print(f'[Epsiode-{ep_no}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
         if failed_segments > 0:

@@ -173,7 +173,7 @@ class DramaClient(BaseClient):
             ep_name = link.text.strip()
             ep_no = int(ep_name.split()[-1])
             ep_upload_time = info.text.strip()
-            episode_list.append({'episode': ep_no, 'episodeName': ep_name, 'episodeLink': ep_link, 'episodeUploadTime': ep_upload_time})
+            episode_list.append({'episode': ep_no, 'episodeName': self._windows_safe_string(ep_name), 'episodeLink': ep_link, 'episodeUploadTime': ep_upload_time})
 
         return episode_list
 
