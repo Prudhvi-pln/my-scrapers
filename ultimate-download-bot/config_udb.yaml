@@ -5,6 +5,7 @@ anime:
   download_link_url: 'api?m=links&p=kwik&id='
   episode_url: 'play/_anime_id_/_episode_id_'
   download_dir: 'D:\Anime'
+  request_timeout: 30
 
 drama:
   base_url: 'https://www4.myasiantv.cc/'
@@ -17,6 +18,7 @@ drama:
   stream_links_element: 'div.anime_muti_link div'
   m3u8_fetch_link: 'https://asianhdplay.net/encrypt-ajax.php?id='
   openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
+  request_timeout: 30
 
 DownloaderConfig:
   # creates a target folder with name of series under this. Uses this, if none specified above

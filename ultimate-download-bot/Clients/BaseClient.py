@@ -8,13 +8,16 @@ from subprocess import Popen, PIPE
 from urllib3.util.retry import Retry
 # import cloudscraper as cs
 
+from Utils.commons import retry
+
 
 class BaseClient():
-    def __init__(self, session=None):
+    def __init__(self, request_timeout=30, session=None):
         # create a requests session and use across to re-use cookies
         self.req_session = session if session else requests.Session()
+        self.request_timeout = request_timeout
         # add retries with backoff
-        retry = Retry(connect=3, backoff_factor=0.5)
+        retry = Retry(total=3, backoff_factor=0.1)
         adapter = HTTPAdapter(max_retries=retry)
         self.req_session.mount('http://', adapter)
         self.req_session.mount('https://', adapter)
@@ -30,16 +33,6 @@ class BaseClient():
         # list of invalid characters not allowed in windows file system
         self.invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
 
-    def _get_bsoup(self, search_url, custom_header={}):
-        '''
-        return html parsed soup
-        '''
-        header = self.header
-        header.update(custom_header)
-        html_content = self.req_session.get(search_url, headers=header).text
-
-        return BS(html_content, 'html.parser')
-    
     def _update_udb_dict(self, parent_key, child_dict):
         if parent_key in self.udb_episode_dict:
             self.udb_episode_dict[parent_key].update(child_dict)
@@ -49,6 +42,7 @@ class BaseClient():
     def _get_udb_dict(self):
         return self.udb_episode_dict
 
+    @retry()
     def _send_request(self, url, referer=None, decode_json=True):
         '''
         call response session and return response
@@ -66,6 +60,14 @@ class BaseClient():
                 return data['data']
         else:
             print(f'Failed with response code: {response.status_code}')
+
+    def _get_bsoup(self, search_url, referer=None):
+        '''
+        return html parsed soup
+        '''
+        html_content = self._send_request(search_url, referer, False)
+
+        return BS(html_content, 'html.parser')
 
     def _exec_cmd(self, cmd):
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)

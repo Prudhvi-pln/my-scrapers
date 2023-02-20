@@ -10,7 +10,7 @@ from Clients.BaseClient import BaseClient
 
 class AnimeClient(BaseClient):
     def __init__(self, config, session=None):
-        super().__init__(session)
+        super().__init__(config['request_timeout'], session)
         self.base_url = config['base_url']
         self.search_url = self.base_url + config['search_url']
         self.episodes_list_url = self.base_url + config['episodes_list_url']

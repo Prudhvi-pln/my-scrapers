@@ -9,7 +9,7 @@ from Clients.BaseClient import BaseClient
 
 class DramaClient(BaseClient):
     def __init__(self, config, session=None):
-        super().__init__(session)
+        super().__init__(config['request_timeout'], session)
         self.base_url = config['base_url']
         self.search_url = self.base_url + config['search_url']
         self.search_link_element = config['search_link_element']
@@ -115,10 +115,14 @@ class DramaClient(BaseClient):
             raise Exception('Invalid response received')
         # decode m3u8 response
         decoded_m3u8_response = self._decrypt(encrypted_m3u8_response)
+        master_m3u8_links = json.loads(decoded_m3u8_response)
         # load m3u8 link containing resolutions
-        master_m3u8_link = json.loads(decoded_m3u8_response)['source'][0]['file']
-        # print(master_m3u8_link)
+        master_m3u8_link = master_m3u8_links.get('source')[0]['file']
         m3u8_links = self._parse_m3u8_links(master_m3u8_link, link)
+        # load from backup link if primary failed
+        if len(m3u8_links) == 0:
+            master_m3u8_link_bkp = master_m3u8_links.get('source_bk')[0]['file']
+            m3u8_links = self._parse_m3u8_links(master_m3u8_link_bkp, link)
 
         return m3u8_links
 

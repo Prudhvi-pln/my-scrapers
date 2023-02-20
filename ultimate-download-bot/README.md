@@ -15,8 +15,9 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
- - Version 2.1 [2023-02-15]
+ - Version 2.2 [2023-02-20]
    - Modified anime client as per updated animepahe site
+   - Added support for backup url in Dramas
 
  - Version 2.0 [2023-02-11]
    - Rewritten code completely
@@ -74,3 +75,10 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
  - AnimeClient is specific to a website
  - DramaClient is 70% generic. Just modify the config per website
  - HLSDownloader is 90% universal. 10% depends on HLS. If a new technique comes up in HLS, this needs to be updated
+
+## FAQs
+ - How to run the downloader ?
+   - cd to the directory and run `python udb.py`
+## Known issues
+ - Progress bar printing duplicate lines for same file
+   - This issue occurs due to ascii characters used and depends on the command line (Prefer Powershell in Windows)

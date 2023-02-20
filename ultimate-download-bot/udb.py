@@ -1,4 +1,4 @@
-__version__ = '2.1'
+__version__ = '2.2'
 __author__ = 'Prudhvi PLN'
 
 import os
@@ -68,6 +68,13 @@ def search_and_select_series():
 
     return search_results[option]
 
+def get_resolutions(items):
+    '''
+    genarator function to yield the resolutions of available episodes
+    '''
+    for item in items:
+        yield [ next(iter(i)) for i in item ]
+
 def batch_downloader(download_fn, links, dl_config, max_parallel_downloads):
 
     @threaded(max_parallel=max_parallel_downloads, thread_name_prefix='udb-')
@@ -76,9 +83,12 @@ def batch_downloader(download_fn, links, dl_config, max_parallel_downloads):
 
     dl_status = start_download(links.values(), dl_config)
     # show download status at the end, so that progress bars are not disturbed
-    print('\n\nDownload Status:')
+    print('\nDownload Status:')
+    status_str = ''
     for status in dl_status:
-        print(status)
+        status_str += f'{status}\n'
+    # Once chatGPT suggested me to reduce 'print' usage as it involves IO to stdout
+    print(status_str)
 
 
 if __name__ == '__main__':
@@ -133,10 +143,16 @@ if __name__ == '__main__':
         # set target output dir
         downloader_config['download_dir'] = f"{downloader_config['download_dir']}\\{series_title}"
 
-        # get available resolutions from first item.
-        # remaining should have same set of resolutions. if not, please swap it with hard-coded list
-        valid_resolutions = [ next(iter(i)) for i in next(iter(target_ep_links.values())) ]
-        # valid_resolutions = ['360','480','720','1080']
+        # get available resolutions
+        valid_resolutions = []
+        valid_resolutions_gen = get_resolutions(target_ep_links.values())
+        for _valid_res in valid_resolutions_gen:
+            valid_resolutions = _valid_res
+            if len(valid_resolutions) > 0:
+                break
+        else:
+            # set to default if empty
+            valid_resolutions = ['360','480','720','1080']
 
         # get valid resolution from user
         while True:

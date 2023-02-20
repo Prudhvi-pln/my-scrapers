@@ -125,9 +125,9 @@ class HLSDownloader():
         reused_segments = 0
         failed_segments = 0
         # shorten the name to show only ep number
-        ep_no = self.out_file.split()[-3]
+        ep_no = int(self.out_file.split()[-3])
         # show progress of download
-        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no}', unit='seg', ascii='░▒█') as progress:
+        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no:02d}', unit='seg', ascii='░▒█') as progress:
             # parallelize download of segments using a threadpool
             with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
                 results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
