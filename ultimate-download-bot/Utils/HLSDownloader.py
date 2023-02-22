@@ -100,6 +100,9 @@ class HLSDownloader():
             # Relative paths
             base_url = '/'.join(m3u8_link.split('/')[:-1])
             urls = [base_url + "/" + url.group(0) for url in re.finditer("(.*)\.ts(.*)", m3u8_data)]
+            if len(urls) == 0:
+                # get all components not only .ts
+                urls = [base_url + "/" + url.group(0) for url in re.finditer('ep\.(.*)', m3u8_data)]
 
         return urls
 

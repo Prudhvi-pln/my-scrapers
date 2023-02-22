@@ -74,7 +74,8 @@ class DramaClient(BaseClient):
         return self._exec_cmd(cmd)
     
     def _decrypt(self, word):
-        cmd = f'echo {word} | "{self.openssl_executable}" enc -aes256 -K {self.key} -iv {self.iv} -d -base64'
+        # decode using python from cli not internally and then use openssl for 256-bit decryption
+        cmd = f'echo {word} | python -m base64 -d | "{self.openssl_executable}" enc -aes256 -K {self.key} -iv {self.iv} -d'
         return self._exec_cmd(cmd)
 
     def _parse_m3u8_links(self, master_m3u8_link, referer):
@@ -89,6 +90,12 @@ class DramaClient(BaseClient):
         resolutions = _regex_list(master_m3u8_data, 'RESOLUTION=(.*),', 1)
         resolution_names = _regex_list(master_m3u8_data, 'NAME="(.*)"', 1)
         resolution_links = _regex_list(master_m3u8_data, '(.*)m3u8', 0)
+
+        # if master m3u8 does not contain any resolutions, use default
+        if len(resolution_links) == 0:
+            m3u8_links.append({'original': {'resolution_size': 'original', 'm3u8Link': master_m3u8_link}})
+            return m3u8_links
+
         for _res, _pixels, _link in zip(resolution_names, resolutions, resolution_links):
             # prepend base url if it is relative url
             m3u8_link = _link if _link.startswith('http') else base_url + '/' + _link
@@ -111,17 +118,24 @@ class DramaClient(BaseClient):
         response = self._send_request(encrypted_link, link, False)
         try:
             encrypted_m3u8_response = json.loads(response)['data']
+            # decode m3u8 response
+            decoded_m3u8_response = self._decrypt(encrypted_m3u8_response)
+            master_m3u8_links = json.loads(decoded_m3u8_response)
         except Exception as e:
-            raise Exception('Invalid response received')
-        # decode m3u8 response
-        decoded_m3u8_response = self._decrypt(encrypted_m3u8_response)
-        master_m3u8_links = json.loads(decoded_m3u8_response)
-        # load m3u8 link containing resolutions
-        master_m3u8_link = master_m3u8_links.get('source')[0]['file']
-        m3u8_links = self._parse_m3u8_links(master_m3u8_link, link)
-        # load from backup link if primary failed
+            raise Exception(f'Invalid response received. Error: {e}')
+
+        # get m3u8 links containing resolutions [ source, bkp_source ]
+        master_m3u8_link, master_m3u8_link_bkp = master_m3u8_links.get('source')[0]['file'], master_m3u8_links.get('source_bk')[0]['file']
+
+        m3u8_links = []
+        try:
+            # print(f'Getting m3u8 from source: {master_m3u8_link}')
+            m3u8_links = self._parse_m3u8_links(master_m3u8_link, link)
+        except Exception as e:
+            pass    # pass to alternate source
+
         if len(m3u8_links) == 0:
-            master_m3u8_link_bkp = master_m3u8_links.get('source_bk')[0]['file']
+            # print(f'Getting m3u8 from alternate source: {master_m3u8_link_bkp}')
             m3u8_links = self._parse_m3u8_links(master_m3u8_link_bkp, link)
 
         return m3u8_links
