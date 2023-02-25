@@ -16,7 +16,8 @@ class DramaClient(BaseClient):
         self.search_title_element = config['search_title_element']
         self.series_info_element = config['series_info_element']
         self.episode_link_element = config['episode_link_element']
-        self.episode_info_element = config['episode_info_element']
+        self.episode_sub_type_element = config['episode_sub_type_element']
+        self.episode_upload_time_element = config['episode_upload_time_element']
         self.stream_links_element = config['stream_links_element']
         self.m3u8_fetch_link = config['m3u8_fetch_link']
         self.openssl_executable = config['openssl_executable']
@@ -180,18 +181,20 @@ class DramaClient(BaseClient):
         '''
         link = target.get('link')
         soup = self._get_bsoup(link)
-        infos = soup.select(self.episode_info_element)[::-1]
+        sub_types = soup.select(self.episode_sub_type_element)[::-1]
+        upload_times = soup.select(self.episode_upload_time_element)[::-1]
         links = soup.select(self.episode_link_element)[::-1]
         episode_list = []
         # get episode links
-        for info, link in zip(infos, links):
+        for sub_typ, upload_time, link in zip(sub_types, upload_times, links):
             ep_link = link['href']
             if ep_link.startswith('/'):
                 ep_link = self.base_url + ep_link
             ep_name = link.text.strip()
             ep_no = int(ep_name.split()[-1])
-            ep_upload_time = info.text.strip()
-            episode_list.append({'episode': ep_no, 'episodeName': self._windows_safe_string(ep_name), 'episodeLink': ep_link, 'episodeUploadTime': ep_upload_time})
+            ep_upload_time = upload_time.text.strip()
+            ep_sub_typ = sub_typ['src'].split('/')[-1].split('.')[0].capitalize()
+            episode_list.append({'episode': ep_no, 'episodeName': self._windows_safe_string(ep_name), 'episodeLink': ep_link, 'episodeSubs': ep_sub_typ, 'episodeUploadTime': ep_upload_time})
 
         return episode_list
 
@@ -205,7 +208,7 @@ class DramaClient(BaseClient):
             print(f'Showing top {show} episodes:')
         for item in items[:show]:
             fmted_name = re.sub(' (\d$)', r' 0\1', item.get('episodeName'))
-            print(f"Episode: {fmted_name} | Release date: {item.get('episodeUploadTime')}")
+            print(f"Episode: {fmted_name} | Subs: {item.get('episodeSubs')} | Release date: {item.get('episodeUploadTime')}")
 
     def fetch_episode_links(self, episodes, ep_start, ep_end):
         '''

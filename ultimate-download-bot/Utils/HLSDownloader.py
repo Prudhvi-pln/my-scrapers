@@ -52,7 +52,7 @@ class HLSDownloader():
         if response.status_code == 200:
             return response.text if to_text else response.content
         else:
-            print(f'Failed with response code: {response.status_code}')
+            raise Exception(f'Failed with response code: {response.status_code}')
 
     def _create_out_dirs(self):
         os.makedirs(self.out_dir, exist_ok=True)
