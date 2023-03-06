@@ -21,6 +21,8 @@ class DramaClient(BaseClient):
         self.stream_links_element = config['stream_links_element']
         self.m3u8_fetch_link = config['m3u8_fetch_link']
         self.openssl_executable = config['openssl_executable']
+        self.preferred_urls = config['preferred_urls']
+        self.blacklist_urls = config['blacklist_urls']
         # key & iv for decryption & encrytion. Don't know why it is working only for these
         # Reference: https://github.com/CoolnsX/dra-cla/blob/main/dra-cla
         self.key = '3933343232313932343333393532343839373532333432393038353835373532'
@@ -126,18 +128,25 @@ class DramaClient(BaseClient):
             raise Exception(f'Invalid response received. Error: {e}')
 
         # get m3u8 links containing resolutions [ source, bkp_source ]
-        master_m3u8_link, master_m3u8_link_bkp = master_m3u8_links.get('source')[0]['file'], master_m3u8_links.get('source_bk')[0]['file']
+        master_m3u8_links = [ master_m3u8_links.get('source')[0]['file'], master_m3u8_links.get('source_bk')[0]['file'] ]
+        # print('master_m3u8_links:', master_m3u8_links)
+        # re-order urls based on user preference
+        ordered_master_m3u8_links = [ j for i in self.preferred_urls for j in master_m3u8_links if i in j ]
+        # append remaining urls
+        ordered_master_m3u8_links.extend([ j for j in master_m3u8_links if j not in ordered_master_m3u8_links ])
+        # remove blacklisted urls
+        ordered_master_m3u8_links = [ j for j in ordered_master_m3u8_links if not any(i in j for i in self.blacklist_urls) ]
+        # print('ordered_master_m3u8_links:', ordered_master_m3u8_links)
 
         m3u8_links = []
-        try:
-            # print(f'Getting m3u8 from source: {master_m3u8_link}')
-            m3u8_links = self._parse_m3u8_links(master_m3u8_link, link)
-        except Exception as e:
-            pass    # pass to alternate source
-
-        if len(m3u8_links) == 0:
-            # print(f'Getting m3u8 from alternate source: {master_m3u8_link_bkp}')
-            m3u8_links = self._parse_m3u8_links(master_m3u8_link_bkp, link)
+        for master_m3u8_link in ordered_master_m3u8_links:
+            try:
+                # print(f'Getting m3u8 from source: {master_m3u8_link}')
+                m3u8_links = self._parse_m3u8_links(master_m3u8_link, link)
+                if len(m3u8_links) > 0:
+                    break
+            except Exception as e:
+                pass    # pass to alternate source
 
         return m3u8_links
 

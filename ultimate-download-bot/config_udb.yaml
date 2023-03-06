@@ -20,6 +20,10 @@ drama:
   m3u8_fetch_link: 'https://asianhdplay.net/encrypt-ajax.php?id='
   openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
   request_timeout: 30
+  # preferred urls while fetching m3u8 links. uses same order of preference
+  preferred_urls: ['https://hls', 'https://ttcx']
+  # avoid below urls while fetching m3u8 links
+  blacklist_urls: ['original']
 
 DownloaderConfig:
   # creates a target folder with name of series under this. Uses this, if none specified above

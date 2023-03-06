@@ -15,10 +15,11 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
- - Version 2.3 [2023-02-22]
+ - Version 2.4 [2023-03-03]
    - Modified anime client as per updated animepahe site
    - Added support for backup url in Dramas
    - Added support for non-ts m3u8 urls
+   - Add preferred & blacklist of m3u8 links
 
  - Version 2.0 [2023-02-11]
    - Rewritten code completely

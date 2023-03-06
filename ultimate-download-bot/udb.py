@@ -1,4 +1,4 @@
-__version__ = '2.3'
+__version__ = '2.4'
 __author__ = 'Prudhvi PLN'
 
 import os
@@ -77,13 +77,14 @@ def get_resolutions(items):
 
 def batch_downloader(download_fn, links, dl_config, max_parallel_downloads):
 
-    @threaded(max_parallel=max_parallel_downloads, thread_name_prefix='udb-')
+    @threaded(max_parallel=max_parallel_downloads, thread_name_prefix='udb-', print_status=False)
     def start_download(link, dl_config):
         return download_fn(link, dl_config)
 
     dl_status = start_download(links.values(), dl_config)
     # show download status at the end, so that progress bars are not disturbed
-    print('\nDownload Status:')
+    print("\033[K") # Clear to the end of line
+    print('\nDownload Summary:')
     status_str = ''
     for status in dl_status:
         status_str += f'{status}\n'

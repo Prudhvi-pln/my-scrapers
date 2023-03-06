@@ -36,7 +36,7 @@ def retry(exceptions=(Exception,), tries=3, delay=2, backoff=2):
     return decorator
 
 # custom decorator to make any function multi-threaded
-def threaded(max_parallel=None, thread_name_prefix='udb-'):
+def threaded(max_parallel=None, thread_name_prefix='udb-', print_status=False):
     '''
     make any function multi-threaded by adding this decorator
     '''
@@ -57,6 +57,7 @@ def threaded(max_parallel=None, thread_name_prefix='udb-'):
                         data = future.result()
                         # if 'completed' not in data:
                         #     print(data)
+                        if print_status: print(f'\r{data}')
                         results[i] = data
                     except Exception as e:
                         print(f'{e}')

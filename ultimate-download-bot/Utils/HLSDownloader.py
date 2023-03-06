@@ -4,6 +4,7 @@ import os
 import re
 import requests
 import shutil
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from requests.adapters import HTTPAdapter
@@ -130,7 +131,7 @@ class HLSDownloader():
         # shorten the name to show only ep number
         ep_no = int(self.out_file.split()[-3])
         # show progress of download
-        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no:02d}', unit='seg', ascii='░▒█') as progress:
+        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no:02d}', unit='seg', leave=True, file=sys.stdout, ascii='░▒█') as progress:
             # parallelize download of segments using a threadpool
             with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
                 results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
@@ -148,7 +149,6 @@ class HLSDownloader():
                     # add reused / failed segments status
                     seg_status = f'R/F: {reused_segments}/{failed_segments}'
                     progress.set_postfix_str(seg_status, refresh=True)
-
 
         if debug: print(f'[Epsiode-{ep_no}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
         if failed_segments > 0:
