@@ -129,9 +129,12 @@ class HLSDownloader():
         reused_segments = 0
         failed_segments = 0
         # shorten the name to show only ep number
-        ep_no = int(self.out_file.split()[-3])
+        try:
+            ep_no = f'Epsiode-{int(self.out_file.split()[-3]):02d}'
+        except:
+            ep_no = f'Movie'
         # show progress of download
-        with tqdm(total=len(ts_urls), desc=f'Downloading Epsiode-{ep_no:02d}', unit='seg', leave=True, file=sys.stdout, ascii='░▒█') as progress:
+        with tqdm(total=len(ts_urls), desc=f'Downloading {ep_no}', unit='seg', leave=True, file=sys.stdout, ascii='░▒█') as progress:
             # parallelize download of segments using a threadpool
             with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix='udb-m3u8-') as executor:
                 results = [ executor.submit(self._download_segment, ts_url) for ts_url in ts_urls ]
@@ -150,7 +153,7 @@ class HLSDownloader():
                     seg_status = f'R/F: {reused_segments}/{failed_segments}'
                     progress.set_postfix_str(seg_status, refresh=True)
 
-        if debug: print(f'[Epsiode-{ep_no}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
+        if debug: print(f'[{ep_no}] Segments download status: Total: {len(ts_urls)} | Reused: {reused_segments} | Failed: {failed_segments}')
         if failed_segments > 0:
             raise Exception(f'Failed to download {failed_segments} / {len(ts_urls)} segments')
 

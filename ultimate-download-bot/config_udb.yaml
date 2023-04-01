@@ -21,7 +21,7 @@ drama:
   openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
   request_timeout: 30
   # preferred urls while fetching m3u8 links. uses same order of preference
-  preferred_urls: ['https://hls', 'https://ttcx']
+  preferred_urls: ['https://fast', 'https://hls', 'https://ttcx']
   # avoid below urls while fetching m3u8 links
   blacklist_urls: ['original']
 

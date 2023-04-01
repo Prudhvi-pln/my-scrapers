@@ -84,12 +84,15 @@ def batch_downloader(download_fn, links, dl_config, max_parallel_downloads):
     dl_status = start_download(links.values(), dl_config)
     # show download status at the end, so that progress bars are not disturbed
     print("\033[K") # Clear to the end of line
-    print('\nDownload Summary:')
+    width = os.get_terminal_size().columns
+    print('\u2500' * width)
+    print('Download Summary:', end='')
     status_str = ''
     for status in dl_status:
-        status_str += f'{status}\n'
+        status_str += f'\n{status}'
     # Once chatGPT suggested me to reduce 'print' usage as it involves IO to stdout
     print(status_str)
+    print('\u2500' * width)
 
 
 if __name__ == '__main__':
@@ -171,7 +174,7 @@ if __name__ == '__main__':
             print('No episodes available to download! Exiting.')
             exit(0)
 
-        proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower()
+        proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower() or 'y'
         if proceed == 'y':
             print(f"\nDownloading episode(s) to {downloader_config['download_dir']}...")
             # invoke downloader using a threadpool

@@ -131,7 +131,8 @@ class AnimeClient(BaseClient):
         anime_title = self._windows_safe_string(target_series['title'])
         # set target output dir
         target_dir = f"{anime_title} ({target_series['year']})"
-        episode_prefix = f"{anime_title} episode"
+        anime_type = 'movie' if target_series.get('type').lower() == 'movie' else 'episode'
+        episode_prefix = f"{anime_title} {anime_type}"
 
         return target_dir, episode_prefix
 
@@ -180,7 +181,11 @@ class AnimeClient(BaseClient):
                 print(f'Resolution [{resolution}] not found')
             else:
                 try:
-                    ep_name = self._windows_safe_string(f'{episode_prefix} {ep} - {resolution}P.mp4')
+                    if episode_prefix.endswith('movie') and len(target_links.items()) <= 1:
+                        ep_name = f'{episode_prefix} - {resolution}P.mp4'
+                    else:
+                        ep_name = f'{episode_prefix} {ep} - {resolution}P.mp4'
+                    ep_name = self._windows_safe_string(ep_name)
                     kwik_link = res_dict[0]['kwik']
                     raw_content = self.get_m3u8_content(kwik_link, ep)
                     ep_link = self.parse_m3u8_link(raw_content)

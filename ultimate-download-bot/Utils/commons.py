@@ -57,7 +57,7 @@ def threaded(max_parallel=None, thread_name_prefix='udb-', print_status=False):
                         data = future.result()
                         # if 'completed' not in data:
                         #     print(data)
-                        if print_status: print(f'\r{data}')
+                        if print_status: print(f"\033[F\033[K\r{data}")
                         results[i] = data
                     except Exception as e:
                         print(f'{e}')
