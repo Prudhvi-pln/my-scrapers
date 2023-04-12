@@ -5,8 +5,9 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
 ## Pre-requisites
  - Python > 3.8
  - pip dependencies: `pip install -r requirements.txt`
-   - jsbeautifier to execute javascript for retrieving HLS
-   - tqdm to show download progress
+   - _jsbeautifier_ to execute javascript for retrieving HLS
+   - _tqdm_ to show download progress
+   - _pycryptodome_ to encrypt/decrypt for Drama
  - ffmpeg
    - Windows:
      - download ffmpeg from [here](https://ffmpeg.org/download.html)
@@ -15,11 +16,12 @@ Anime series downloader from https://animepahe.com/. Downloads the file using Ht
      - sudo apt install -y ffmpeg
 
 ## Changelog
- - Version 2.4 [2023-03-03]
+ - Version 2.5 [2023-04-12]
    - Modified anime client as per updated animepahe site
    - Added support for backup url in Dramas
    - Added support for non-ts m3u8 urls
    - Add preferred & blacklist of m3u8 links
+   - Removed dependency on openssl. Uses pycryptodome instead
 
  - Version 2.0 [2023-02-11]
    - Rewritten code completely

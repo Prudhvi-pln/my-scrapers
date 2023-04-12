@@ -7,6 +7,9 @@ from requests.adapters import HTTPAdapter
 from subprocess import Popen, PIPE
 from urllib3.util.retry import Retry
 # import cloudscraper as cs
+import base64
+import binascii
+from Crypto.Cipher import AES
 
 from Utils.commons import retry
 
@@ -32,6 +35,7 @@ class BaseClient():
         self.udb_episode_dict = {}   # dict containing all details of epsiodes
         # list of invalid characters not allowed in windows file system
         self.invalid_chars = ['/', '\\', '"', ':', '?', '|', '<', '>', '*']
+        self.bs = AES.block_size
 
     def _update_udb_dict(self, parent_key, child_dict):
         if parent_key in self.udb_episode_dict:
@@ -84,3 +88,43 @@ class BaseClient():
             word = word.replace(i, '')
 
         return word
+
+    def _get_cipher(self, key, iv):
+        '''
+        return the cipher based on given encryption key and initialization vector
+        '''
+        key = binascii.unhexlify(key)
+        iv = binascii.unhexlify(iv)
+        # set up the AES cipher in CBC mode with PKCS#7 padding
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+
+        return cipher
+
+    def _pad(self, s):
+        return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
+
+    def _unpad(self, s):
+        return s[:-ord(s[len(s)-1:])]
+
+    def _encrypt(self, word, cipher):
+        # [deprecated] using openssl
+        # cmd = f'echo {word} | "{openssl_executable}" enc -aes256 -K {key} -iv {iv} -a -e'
+        # Encrypt the message and add PKCS#7 padding
+        padded_message = self._pad(word)
+        encrypted_message = cipher.encrypt(padded_message.encode('utf-8'))
+        # Base64-encode the encrypted message
+        base64_encrypted_message = base64.b64encode(encrypted_message).decode('utf-8')
+
+        return base64_encrypted_message
+
+    def _decrypt(self, word, cipher):
+        # [deprecated] using openssl
+        # Decode the base64-encoded message
+        # cmd = f'echo {word} | python -m base64 -d | "{openssl_executable}" enc -aes256 -K {key} -iv {iv} -d'
+        encrypted_msg = base64.b64decode(word)
+        # Decrypt the message and remove the PKCS#7 padding
+        decrypted_msg = self._unpad(cipher.decrypt(encrypted_msg))
+        # get the decrypted message using UTF-8 encoding
+        decrypted_msg = decrypted_msg.decode('utf-8').strip()
+
+        return decrypted_msg

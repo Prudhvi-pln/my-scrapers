@@ -3,3 +3,4 @@ jsbeautifier
 beautifulsoup4
 requests
 tqdm
+pycryptodome

@@ -18,7 +18,6 @@ drama:
   episode_upload_time_element: 'ul.list-episode li span'
   stream_links_element: 'div.anime_muti_link div'
   m3u8_fetch_link: 'https://asianhdplay.net/encrypt-ajax.php?id='
-  openssl_executable: 'C:\Program Files\Git\usr\bin\openssl.exe'
   request_timeout: 30
   # preferred urls while fetching m3u8 links. uses same order of preference
   preferred_urls: ['https://fast', 'https://hls', 'https://ttcx']

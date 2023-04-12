@@ -20,7 +20,6 @@ class DramaClient(BaseClient):
         self.episode_upload_time_element = config['episode_upload_time_element']
         self.stream_links_element = config['stream_links_element']
         self.m3u8_fetch_link = config['m3u8_fetch_link']
-        self.openssl_executable = config['openssl_executable']
         self.preferred_urls = config['preferred_urls']
         self.blacklist_urls = config['blacklist_urls']
         # key & iv for decryption & encrytion. Don't know why it is working only for these
@@ -72,15 +71,6 @@ class DramaClient(BaseClient):
             info += f' | {_reskey}P ({_res[_reskey]["resolution_size"]})' #| URL: {_res[_reskey]["m3u8Link"]}
         print(info)
 
-    def _encrypt(self, word):
-        cmd = f'echo {word} | "{self.openssl_executable}" enc -aes256 -K {self.key} -iv {self.iv} -a -e'
-        return self._exec_cmd(cmd)
-    
-    def _decrypt(self, word):
-        # decode using python from cli not internally and then use openssl for 256-bit decryption
-        cmd = f'echo {word} | python -m base64 -d | "{self.openssl_executable}" enc -aes256 -K {self.key} -iv {self.iv} -d'
-        return self._exec_cmd(cmd)
-
     def _parse_m3u8_links(self, master_m3u8_link, referer):
         '''
         parse master m3u8 data and return dict of resolutions and m3u8 links
@@ -114,15 +104,17 @@ class DramaClient(BaseClient):
         uid = { i.split('=')[0]:i.split('=')[1] for i in link.split('?')[1].split('&') }.get('id')
         if uid is None:
             raise Exception('id not found in Stream link')
-        # encrypt the uid
-        encrypted_id = self._encrypt(uid)
+        # encrypt the uid with new cipher
+        cipher = self._get_cipher(self.key, self.iv)
+        encrypted_id = self._encrypt(uid, cipher)
         encrypted_link = f'{self.m3u8_fetch_link}{encrypted_id}'
         # get encrpyted response with m3u8 links
         response = self._send_request(encrypted_link, link, False)
         try:
             encrypted_m3u8_response = json.loads(response)['data']
-            # decode m3u8 response
-            decoded_m3u8_response = self._decrypt(encrypted_m3u8_response)
+            # decode m3u8 response with new cipher
+            cipher = self._get_cipher(self.key, self.iv)
+            decoded_m3u8_response = self._decrypt(encrypted_m3u8_response, cipher)
             master_m3u8_links = json.loads(decoded_m3u8_response)
         except Exception as e:
             raise Exception(f'Invalid response received. Error: {e}')
