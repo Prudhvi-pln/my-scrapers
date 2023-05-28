@@ -65,7 +65,7 @@ class DramaClient(BaseClient):
         '''
         pretty print episode links from fetch_episode_links
         '''
-        info = f"Episode: {key:02d}"
+        info = f"Episode: {self._safe_type_cast(key)}"
         for _res in details:
             _reskey = next(iter(_res))
             info += f' | {_reskey}P ({_res[_reskey]["resolution_size"]})' #| URL: {_res[_reskey]["m3u8Link"]}
@@ -250,7 +250,7 @@ class DramaClient(BaseClient):
         has_key = lambda x, y: y in x.keys()
 
         for ep, link in target_links.items():
-            print(f'Episode: {ep:02d}', end=' | ')
+            print(f'Episode: {self._safe_type_cast(ep)}', end=' | ')
             res_dict = [ i.get(resolution) for i in link if has_key(i, resolution) ]
             if len(res_dict) == 0:
                 print(f'Resolution [{resolution}] not found')

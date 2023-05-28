@@ -1,4 +1,4 @@
-__version__ = '2.5'
+__version__ = '2.6'
 __author__ = 'Prudhvi PLN'
 
 import os
@@ -115,6 +115,23 @@ if __name__ == '__main__':
         if 'download_dir' in config[series_type]:
             downloader_config['download_dir'] = config[series_type]['download_dir']
 
+        # modify path based on platform
+        tmp_path = downloader_config['download_dir']
+        if os.sep == '\\' and '/mnt/' in tmp_path:
+            # platform is Windows and path is Linux, then convert to Windows path
+            tmp_path = tmp_path.split('/')[2:]
+            tmp_path[0] = tmp_path[0].upper() + ':'
+            tmp_path = '\\'.join(tmp_path)
+        elif os.sep == '/' and ':\\' in tmp_path:
+            # platform is Linux and path is Windows, then convert to Linux path
+            tmp_path = tmp_path.split('\\')
+            tmp_path[0] = tmp_path[0].lower().replace(':', '')
+            tmp_path = '/mnt/' + '/'.join(tmp_path)
+        else:
+            tmp_path = tmp_path.replace('/', os.sep).replace('\\', os.sep) # make sure the separator is correct
+
+        downloader_config['download_dir'] = tmp_path
+
         # search in an infinite loop till you get your series
         target_series = search_and_select_series()
 
@@ -145,7 +162,7 @@ if __name__ == '__main__':
         # set output names & make it windows safe
         series_title, episode_prefix = client.set_out_names(target_series)
         # set target output dir
-        downloader_config['download_dir'] = f"{downloader_config['download_dir']}\\{series_title}"
+        downloader_config['download_dir'] = os.path.join(f"{downloader_config['download_dir']}", f"{series_title}")
 
         # get available resolutions
         valid_resolutions = []
@@ -176,7 +193,7 @@ if __name__ == '__main__':
 
         proceed = input(f"\nProceed with downloading {len(target_dl_links)} episodes (y|n)? ").lower() or 'y'
         if proceed == 'y':
-            print(f"\nDownloading episode(s) to {downloader_config['download_dir']}...")
+            print(f"\nDownloading episode(s) to file:///{downloader_config['download_dir']}...")
             # invoke downloader using a threadpool
             batch_downloader(downloader, target_dl_links, downloader_config, max_parallel_downloads)
         else:

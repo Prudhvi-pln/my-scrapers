@@ -89,6 +89,14 @@ class BaseClient():
 
         return word
 
+    def _safe_type_cast(self, val):
+        try:
+            value = f'{val:02d}'
+        except ValueError as ve:
+            value = f'{val}'
+
+        return value
+
     def _get_cipher(self, key, iv):
         '''
         return the cipher based on given encryption key and initialization vector

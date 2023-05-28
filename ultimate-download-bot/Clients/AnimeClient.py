@@ -31,7 +31,7 @@ class AnimeClient(BaseClient):
         '''
         pretty print episode links from fetch_episode_links
         '''
-        info = f"Episode: {key:02d}"
+        info = f"Episode: {self._safe_type_cast(key)}"
         for _res in details:
             _reskey = next(iter(_res))
             filesize = _res[_reskey]['filesize']
@@ -175,7 +175,7 @@ class AnimeClient(BaseClient):
         has_key = lambda x, y: y in x.keys()
 
         for ep, link in target_links.items():
-            print(f'Episode: {ep:02d}', end=' | ')
+            print(f'Episode: {self._safe_type_cast(ep)}', end=' | ')
             res_dict = [ i.get(resolution) for i in link if has_key(i, resolution) ]
             if len(res_dict) == 0:
                 print(f'Resolution [{resolution}] not found')
@@ -216,7 +216,7 @@ class AnimeClient(BaseClient):
             show = int(input(f'Total {cnt} episodes found. Enter range to display [default=ALL]: ') or cnt)
             print(f'Showing top {show} episodes:')
         for item in items[:show]:
-            print(f"Episode: {item.get('episode'):02d} | Audio: {item.get('audio')} | Duration: {item.get('duration')} | Release date: {item.get('created_at')}")
+            print(f"Episode: {self._safe_type_cast(item.get('episode'))} | Audio: {item.get('audio')} | Duration: {item.get('duration')} | Release date: {item.get('created_at')}")
 
     def show_episode_links(self, items):
         '''

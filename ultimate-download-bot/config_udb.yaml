@@ -1,5 +1,5 @@
 anime:
-  base_url: 'https://animepahe.com/'
+  base_url: 'https://animepahe.ru/'
   search_url: 'api?m=search&q='
   episodes_list_url: 'api?m=release&sort=episode_asc&id='
   download_link_url: 'api?m=links&p=kwik&id='

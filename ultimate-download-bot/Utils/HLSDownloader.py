@@ -23,13 +23,13 @@ class HLSDownloader():
 
     def __init__(self, dl_config, referer_link, out_file, session=None):
         self.out_dir = dl_config['download_dir']
-        self.parent_temp_dir = dl_config['temp_download_dir'] if dl_config['temp_download_dir'] != 'auto' else f'{self.out_dir}\\temp_dir'
-        self.temp_dir = f"{self.parent_temp_dir}\\{out_file.replace('.mp4','')}" #create temp directory per episode
+        self.parent_temp_dir = dl_config['temp_download_dir'] if dl_config['temp_download_dir'] != 'auto' else os.path.join(f'{self.out_dir}', 'temp_dir')
+        self.temp_dir = os.path.join(f"{self.parent_temp_dir}", f"{out_file.replace('.mp4','')}") #create temp directory per episode
         self.concurrency = dl_config['concurrency_per_file'] if dl_config['concurrency_per_file'] != 'auto' else None
         self.request_timeout = dl_config['request_timeout']
         self.referer = referer_link
         self.out_file = out_file
-        self.m3u8_file = f'{self.temp_dir}\\uwu.m3u8'
+        self.m3u8_file = os.path.join(f'{self.temp_dir}', 'uwu.m3u8')
         # create a requests session and use across to re-use cookies
         self.req_session = session if session else requests.Session()
         # add retries with backoff
@@ -111,7 +111,7 @@ class HLSDownloader():
     def _download_segment(self, ts_url):
         try:
             segment_file_nm = ts_url.split('/')[-1]
-            segment_file = f"{self.temp_dir}//{segment_file_nm}"
+            segment_file = os.path.join(f"{self.temp_dir}", f"{segment_file_nm}")
 
             if os.path.isfile(segment_file) and os.path.getsize(segment_file) > 0:
                 return f'Segment file [{segment_file_nm}] already exists. Reusing.'
@@ -130,7 +130,11 @@ class HLSDownloader():
         failed_segments = 0
         # shorten the name to show only ep number
         try:
-            ep_no = f'Epsiode-{int(self.out_file.split()[-3]):02d}'
+            ep_no = self.out_file.split()[-3]
+            try:
+                ep_no = f'Epsiode-{int(ep_no):02d}'
+            except ValueError as ve:
+                ep_no = f'Epsiode-{ep_no}'
         except:
             ep_no = f'Movie'
         # show progress of download
@@ -160,16 +164,18 @@ class HLSDownloader():
     def _rewrite_m3u8_file(self, m3u8_data):
         # regex safe temp dir path
         seg_temp_dir = self.temp_dir.replace('\\', '\\\\')
-        # ffmpeg doesn't accept backward slash in key file
+        # ffmpeg doesn't accept backward slash in key file irrespective of platform
         key_temp_dir = self.temp_dir.replace('\\', '/')
         with open(self.m3u8_file, "w") as m3u8_f:
             m3u8_content = re.sub('URI=(.*)/', f'URI="{key_temp_dir}/', m3u8_data, count=1)
-            m3u8_content = re.sub(r'https://(.*)/', f'{seg_temp_dir}\\\\', m3u8_content)
+            regex_safe = '\\\\' if os.sep == '\\' else '/'
+            m3u8_content = re.sub(r'https://(.*)/', f'{seg_temp_dir}{regex_safe}', m3u8_content)
             m3u8_f.write(m3u8_content)
 
     def _convert_to_mp4(self):
         # print(f'Converting {self.out_file} to mp4')
-        cmd = f'ffmpeg -loglevel warning -allowed_extensions ALL -i "{self.m3u8_file}" -c copy -bsf:a aac_adtstoasc "{self.out_dir}\\{self.out_file}"'
+        out_file = os.path.join(f'{self.out_dir}', f'{self.out_file}')
+        cmd = f'ffmpeg -loglevel warning -allowed_extensions ALL -i "{self.m3u8_file}" -c copy -bsf:a aac_adtstoasc "{out_file}"'
         self._exec_cmd(cmd)
 
     def m3u8_downloader(self, m3u8_link):
@@ -217,7 +223,7 @@ def downloader(ep_details, dl_config):
     start_epoch = int(time())
     if debug: print(f'[{start}] Download started for {out_file}...')
 
-    if os.path.isfile(f'{out_dir}\\{out_file}'):
+    if os.path.isfile(os.path.join(f'{out_dir}', f'{out_file}')):
         # skip file if already exists
         return f'[{start}] Download skipped for {out_file}. File already exists!'
     else:
